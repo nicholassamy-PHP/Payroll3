@@ -1,0 +1,85 @@
+-- Payroll system tables for Quebec payroll processing
+
+-- Employees table
+CREATE TABLE IF NOT EXISTS employees (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  first_name VARCHAR(255) NOT NULL,
+  last_name VARCHAR(255) NOT NULL,
+  code VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(255),
+  active BOOLEAN DEFAULT true,
+  hire_date DATE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Pay periods table
+CREATE TABLE IF NOT EXISTS pay_periods (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  pay_end_date DATE NOT NULL,
+  payment_date DATE NOT NULL,
+  pay_number INTEGER NOT NULL,
+  payroll_year INTEGER NOT NULL,
+  status VARCHAR(50) DEFAULT 'draft', -- draft, completed, paid
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(company_id, payroll_year, pay_number)
+);
+
+-- Hours input table
+CREATE TABLE IF NOT EXISTS hours_input (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  period_id UUID NOT NULL REFERENCES pay_periods(id) ON DELETE CASCADE,
+  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  regular_hours DECIMAL(10, 2) DEFAULT 0,
+  holiday_paid_hours DECIMAL(10, 2) DEFAULT 0,
+  vacation_paid_hours DECIMAL(10, 2) DEFAULT 0,
+  special_hours DECIMAL(10, 2) DEFAULT 0,
+  maternity_hours DECIMAL(10, 2) DEFAULT 0,
+  ssl_hours DECIMAL(10, 2) DEFAULT 0,
+  other_amount DECIMAL(10, 2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(period_id, employee_id)
+);
+
+-- Payroll run results table
+CREATE TABLE IF NOT EXISTS payroll_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  period_id UUID NOT NULL REFERENCES pay_periods(id) ON DELETE CASCADE,
+  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  gross_pay DECIMAL(12, 2) NOT NULL,
+  cpp_contribution DECIMAL(12, 2) DEFAULT 0,
+  ei_contribution DECIMAL(12, 2) DEFAULT 0,
+  federal_tax DECIMAL(12, 2) DEFAULT 0,
+  provincial_tax DECIMAL(12, 2) DEFAULT 0,
+  net_pay DECIMAL(12, 2) NOT NULL,
+  ytd_gross DECIMAL(12, 2) DEFAULT 0,
+  ytd_net DECIMAL(12, 2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(period_id, employee_id)
+);
+
+-- Tax configuration table
+CREATE TABLE IF NOT EXISTS tax_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  payroll_year INTEGER NOT NULL,
+  cpp_rate DECIMAL(5, 4) DEFAULT 0.0595,
+  ei_rate DECIMAL(5, 4) DEFAULT 0.0163,
+  federal_basic_personal_amount DECIMAL(10, 2) DEFAULT 15705,
+  provincial_basic_personal_amount DECIMAL(10, 2) DEFAULT 16202,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(company_id, payroll_year)
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_employees_company_id ON employees(company_id);
+CREATE INDEX IF NOT EXISTS idx_pay_periods_company_id ON pay_periods(company_id);
+CREATE INDEX IF NOT EXISTS idx_hours_input_period_id ON hours_input(period_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_runs_period_id ON payroll_runs(period_id);
+CREATE INDEX IF NOT EXISTS idx_tax_config_company_id ON tax_config(company_id);

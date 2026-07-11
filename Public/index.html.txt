@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APEX PAY - Portal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { background: white; border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); max-width: 600px; width: 90%; padding: 40px; text-align: center; }
+    .logo { width: 120px; height: 120px; margin: 0 auto 30px; }
+    h1 { color: #1e40af; margin-bottom: 10px; font-size: 32px; }
+    .subtitle { color: #64748b; margin-bottom: 30px; font-size: 16px; }
+    .welcome-msg { background: #f0f4ff; padding: 20px; border-radius: 8px; margin-bottom: 30px; color: #1e40af; line-height: 1.6; }
+    .user-info { margin-bottom: 30px; padding: 15px; background: #f8f9fa; border-radius: 8px; color: #475569; }
+    .user-info strong { color: #1e40af; }
+    .button-group { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+    button { padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: all 0.3s ease; font-weight: 600; }
+    .btn-primary { background: #1e40af; color: white; }
+    .btn-primary:hover { background: #1e3a8a; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(30, 64, 175, 0.3); }
+    .btn-secondary { background: #e2e8f0; color: #1e40af; }
+    .btn-secondary:hover { background: #cbd5e1; transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg class="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="95" fill="#1e40af" opacity="0.1"/>
+      <circle cx="100" cy="70" r="35" fill="#1e40af"/>
+      <path d="M 100 50 L 120 65 L 110 65 L 110 85 L 90 85 L 90 65 L 80 65 Z" fill="white"/>
+      <circle cx="100" cy="95" r="18" fill="none" stroke="#1e40af" stroke-width="3"/>
+      <text x="100" y="102" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1e40af" text-anchor="middle">$</text>
+      <text x="100" y="155" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#1e40af" text-anchor="middle">APEX PAY</text>
+      <text x="100" y="175" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">PAYROLL SYSTEM</text>
+    </svg>
+
+    <h1>Welcome to APEX PAY</h1>
+    <p class="subtitle">Payroll Management System</p>
+
+    <div id="authenticated" style="display: none;">
+      <div class="welcome-msg">
+        <p>You are logged in to your payroll account.</p>
+      </div>
+      <div class="user-info">
+        <p>Name: <strong id="userName"></strong></p>
+        <p>Email: <strong id="userEmail"></strong></p>
+      </div>
+      <div class="button-group">
+        <button class="btn-primary" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div id="unauthenticated" style="display: none;">
+      <div class="welcome-msg">
+        <p>Manage your payroll and employee data with APEX PAY.</p>
+      </div>
+      <div class="button-group">
+        <button class="btn-primary" onclick="window.location.href='/signin'">Sign In</button>
+        <button class="btn-secondary" onclick="window.location.href='/signup'">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function checkAuth() {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          document.getElementById('unauthenticated').style.display = 'block';
+          return;
+        }
+
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        document.getElementById('userName').textContent = user.name || 'User';
+        document.getElementById('userEmail').textContent = user.email || 'N/A';
+        document.getElementById('authenticated').style.display = 'block';
+      } catch (error) {
+        console.error('Auth check error:', error);
+        document.getElementById('unauthenticated').style.display = 'block';
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('company');
+      window.location.reload();
+    }
+
+    checkAuth();
+
+    setTimeout(() => {
+      const token = localStorage.getItem('authToken');
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      if (token) {
+        if (company.id) {
+          window.location.href = '/dashboard';
+        } else {
+          window.location.href = '/setup';
+        }
+      }
+    }, 100);
+  </script>
+</body>
+</html>

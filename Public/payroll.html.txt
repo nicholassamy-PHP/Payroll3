@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APEX PAY - Payroll System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+    
+    .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px 30px; color: white; display: flex; justify-content: space-between; align-items: center; }
+    .navbar h1 { font-size: 24px; }
+    .navbar button { background: rgba(255, 255, 255, 0.2); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; transition: all 0.3s; }
+    .navbar button:hover { background: rgba(255, 255, 255, 0.3); }
+    
+    .container { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
+    
+    .tabs { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; }
+    .tab-btn { background: none; border: none; padding: 15px 20px; font-size: 16px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s; }
+    .tab-btn.active { color: #1e40af; border-bottom-color: #1e40af; }
+    .tab-btn:hover { color: #1e40af; }
+    
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+    .stat-label { color: #64748b; font-size: 14px; margin-bottom: 8px; }
+    .stat-value { font-size: 32px; font-weight: bold; color: #1e40af; }
+    
+    .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
+    .card h2 { color: #1e40af; margin-bottom: 20px; font-size: 20px; }
+    
+    .form-group { margin-bottom: 20px; }
+    label { display: block; color: #1e40af; font-weight: 600; margin-bottom: 8px; }
+    input, select, textarea { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
+    
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+    
+    .btn { padding: 12px 24px; background: #1e40af; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+    .btn:hover { background: #1e3a8a; transform: translateY(-2px); }
+    .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+    .btn-secondary { background: #64748b; }
+    .btn-secondary:hover { background: #475569; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { background: #f0f4ff; color: #1e40af; padding: 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+    tr:hover { background: #f8fafc; }
+    
+    .message { padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: 500; }
+    .success { color: #15803d; background: #f0fdf4; }
+    .error { color: #dc2626; background: #fee2e2; }
+    .info { color: #0369a1; background: #f0f9ff; }
+    
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 1000; }
+    .modal.active { display: flex; }
+    .modal-content { background: white; padding: 30px; border-radius: 8px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h2 { color: #1e40af; }
+    .close-btn { background: none; border: none; font-size: 24px; color: #64748b; cursor: pointer; }
+    
+    .hours-input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .hours-input-group { }
+    .hours-input-group label { margin-bottom: 5px; font-size: 12px; }
+    .hours-input-group input { width: 100%; padding: 8px; }
+    
+    .employee-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 15px; align-items: center; }
+    .employee-name { font-weight: 600; color: #1e40af; }
+    .hours-cell input { width: 100%; padding: 8px; font-size: 12px; }
+    
+    .loading { opacity: 0.6; }
+    
+    @media (max-width: 1200px) {
+      .employee-row { grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; }
+    }
+    
+    @media (max-width: 768px) {
+      .tabs { flex-wrap: wrap; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .employee-row { grid-template-columns: 1fr auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <h1>💰 APEX PAY - Payroll System</h1>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('employees')">👥 Employees</button>
+      <button class="tab-btn" onclick="switchTab('payroll')">💵 Payroll</button>
+      <button class="tab-btn" onclick="switchTab('reports')">📈 Reports</button>
+    </div>
+
+    <!-- DASHBOARD TAB -->
+    <div id="dashboard" class="tab-content active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Employees</div>
+          <div class="stat-value" id="totalEmployees">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Pay Periods</div>
+          <div class="stat-value" id="activePayPeriods">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">YTD Gross Pay</div>
+          <div class="stat-value" id="ytdGross">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Current Year</div>
+          <div class="stat-value" id="currentYear">2024</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Company Overview</h2>
+        <div id="companyInfo"></div>
+      </div>
+    </div>
+
+    <!-- EMPLOYEES TAB -->
+    <div id="employees" class="tab-content">
+      <div class="card">
+        <h2>Add New Employee</h2>
+        <form id="employeeForm" onsubmit="addEmployee(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="firstName">First Name</label>
+              <input type="text" id="firstName" name="firstName" required>
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last Name</label>
+              <input type="text" id="lastName" name="lastName" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="employeeCode">Employee Code</label>
+              <input type="text" id="employeeCode" name="employeeCode" placeholder="EMP001" required>
+            </div>
+            <div class="form-group">
+              <label for="employeeEmail">Email</label>
+              <input type="email" id="employeeEmail" name="employeeEmail" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="hireDate">Hire Date</label>
+            <input type="date" id="hireDate" name="hireDate" required>
+          </div>
+          <button type="submit" class="btn">Add Employee</button>
+        </form>
+        <div id="employeeMsg" class="message" style="display: none;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Employee List</h2>
+        <div id="employeeMsg2" class="message" style="display: none;"></div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Code</th>
+              <th>Email</th>
+              <th>Hire Date</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="employeeTable">
+            <tr><td colspan="6" style="text-align: center; color: #64748b;">Loading employees...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAYROLL TAB -->
+    <div id="payroll" class="tab-content">
+      <div class="card">
+        <h2>Payroll Period Setup</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="payEndDate">Pay Period End Date</label>
+            <input type="date" id="payEndDate" required>
+          </div>
+          <div class="form-group">
+            <label for="paymentDate">Payment Date</label>
+            <input type="date" id="paymentDate" required>
+          </div>
+        </div>
+        <div id="payrollMsg" class="message" style="display: none;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Hours Entry</h2>
+        <div id="hoursContainer">
+          <p style="color: #64748b;">Loading employees...</p>
+        </div>
+        <button class="btn" style="margin-top: 20px;" onclick="calculatePayroll()">Calculate Payroll</button>
+        <button class="btn btn-secondary" style="margin-top: 20px; margin-left: 10px;" onclick="viewPayrollResults()">View Results</button>
+      </div>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div id="reports" class="tab-content">
+      <div class="card">
+        <h2>Year-to-Date Summary</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Employee Name</th>
+              <th>Employee Code</th>
+              <th>YTD Gross</th>
+              <th>YTD Net</th>
+              <th>YTD CPP</th>
+              <th>YTD EI</th>
+              <th>YTD Tax</th>
+            </tr>
+          </thead>
+          <tbody id="reportTable">
+            <tr><td colspan="7" style="text-align: center; color: #64748b;">Loading report data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payroll Results Modal -->
+  <div id="resultsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Payroll Calculation Results</h2>
+        <button class="close-btn" onclick="closeResultsModal()">×</button>
+      </div>
+      <div id="payrollResults"></div>
+    </div>
+  </div>
+
+  <script>
+    let company = JSON.parse(localStorage.getItem('company') || '{}');
+    let user = JSON.parse(localStorage.getItem('user') || '{}');
+    let employees = [];
+    let hoursData = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!user.id || !company.id) {
+        window.location.href = '/dashboard.html';
+        return;
+      }
+      loadDashboard();
+      loadEmployees();
+      loadReports();
+    });
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabName).classList.add('active');
+      document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+      
+      if (tabName === 'payroll') loadEmployeesForPayroll();
+      if (tabName === 'reports') loadReports();
+    }
+
+    function loadDashboard() {
+      document.getElementById('currentYear').textContent = new Date().getFullYear();
+      
+      const companyHTML = `
+        <p><strong>Company:</strong> ${company.company_name}</p>
+        <p><strong>Type:</strong> ${company.company_type}</p>
+        <p><strong>Address:</strong> ${company.company_address}</p>
+        <p><strong>Industry:</strong> ${company.industry}</p>
+      `;
+      document.getElementById('companyInfo').innerHTML = companyHTML;
+      
+      fetch(`/api/payroll-employees?companyId=${company.id}`)
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('totalEmployees').textContent = data.employees ? data.employees.length : 0;
+        })
+        .catch(e => console.log('Error loading employees for dashboard:', e));
+    }
+
+    function loadEmployees() {
+      fetch(`/api/payroll-employees?companyId=${company.id}`)
+        .then(r => r.json())
+        .then(data => {
+          employees = data.employees || [];
+          renderEmployeeTable();
+        })
+        .catch(e => {
+          showMessage('employeeMsg2', 'Error loading employees', 'error');
+        });
+    }
+
+    function renderEmployeeTable() {
+      const tbody = document.getElementById('employeeTable');
+      if (!employees.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No employees yet. Add one above.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = employees.map(emp => `
+        <tr>
+          <td>${emp.first_name} ${emp.last_name}</td>
+          <td>${emp.code}</td>
+          <td>${emp.email}</td>
+          <td>${emp.hire_date}</td>
+          <td>${emp.active ? '✓ Active' : 'Inactive'}</td>
+          <td>
+            <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="toggleEmployee('${emp.id}')">
+              ${emp.active ? 'Deactivate' : 'Activate'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function addEmployee(e) {
+      e.preventDefault();
+      const msgDiv = document.getElementById('employeeMsg');
+      msgDiv.style.display = 'none';
+
+      const payload = {
+        companyId: company.id,
+        firstName: document.getElementById('firstName').value.trim(),
+        lastName: document.getElementById('lastName').value.trim(),
+        code: document.getElementById('employeeCode').value.trim(),
+        email: document.getElementById('employeeEmail').value.trim(),
+        hireDate: document.getElementById('hireDate').value
+      };
+
+      fetch('/api/payroll-employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.id) {
+          showMessage('employeeMsg', '✓ Employee added successfully!', 'success');
+          document.getElementById('employeeForm').reset();
+          loadEmployees();
+        } else {
+          showMessage('employeeMsg', '✗ ' + (data.error || 'Failed to add employee'), 'error');
+        }
+      })
+      .catch(e => showMessage('employeeMsg', '✗ Error: ' + e.message, 'error'));
+    }
+
+    function toggleEmployee(empId) {
+      const emp = employees.find(e => e.id === empId);
+      if (!emp) return;
+
+      fetch('/api/payroll-employees', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: empId,
+          active: !emp.active
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.id) {
+          loadEmployees();
+        }
+      })
+      .catch(e => console.log('Error updating employee:', e));
+    }
+
+    function loadEmployeesForPayroll() {
+      if (employees.length === 0) {
+        document.getElementById('hoursContainer').innerHTML = '<p style="color: #64748b;">No employees. Add employees in the Employees tab first.</p>';
+        return;
+      }
+
+      let html = '<div style="overflow-x: auto;"><table style="margin-top: 0;"><thead><tr>';
+      html += '<th>Employee</th>';
+      html += '<th>Regular</th><th>Holiday</th><th>Vacation</th><th>Maternity</th><th>SSL</th><th>Special</th><th>Other</th>';
+      html += '</tr></thead><tbody>';
+
+      employees.forEach(emp => {
+        html += `<tr>
+          <td style="font-weight: 600;">${emp.first_name} ${emp.last_name}</td>
+          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="regular_hours"></td>
+          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="holiday_paid_hours"></td>
+          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="vacation_paid_hours"></td>
+          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="maternity_hours"></td>
+          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="ssl_hours"></td>
+          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="special_hours"></td>
+          <td><input type="number" step="0.01" value="0" data-emp="${emp.id}" data-type="other_amount"></td>
+        </tr>`;
+      });
+
+      html += '</tbody></table></div>';
+      document.getElementById('hoursContainer').innerHTML = html;
+    }
+
+    function calculatePayroll() {
+      const msgDiv = document.getElementById('payrollMsg');
+      msgDiv.style.display = 'none';
+
+      const payEndDate = document.getElementById('payEndDate').value;
+      const paymentDate = document.getElementById('paymentDate').value;
+
+      if (!payEndDate || !paymentDate) {
+        showMessage('payrollMsg', '✗ Please fill in dates', 'error');
+        return;
+      }
+
+      const inputs = document.querySelectorAll('#hoursContainer input');
+      const hoursMap = {};
+
+      inputs.forEach(input => {
+        const empId = input.dataset.emp;
+        const type = input.dataset.type;
+        const value = parseFloat(input.value) || 0;
+        if (!hoursMap[empId]) hoursMap[empId] = {};
+        hoursMap[empId][type] = value;
+      });
+
+      const payload = {
+        companyId: company.id,
+        payEndDate,
+        paymentDate,
+        hours: hoursMap
+      };
+
+      fetch('/api/payroll-calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showMessage('payrollMsg', '✓ Payroll calculated successfully!', 'success');
+          displayPayrollResults(data.payroll);
+        } else {
+          showMessage('payrollMsg', '✗ ' + (data.error || 'Calculation failed'), 'error');
+        }
+      })
+      .catch(e => showMessage('payrollMsg', '✗ Error: ' + e.message, 'error'));
+    }
+
+    function displayPayrollResults(payroll) {
+      let html = '<table style="font-size: 14px;"><thead><tr>';
+      html += '<th>Employee</th><th>Gross</th><th>CPP</th><th>EI</th><th>Federal Tax</th><th>Provincial Tax</th><th>Net Pay</th>';
+      html += '</tr></thead><tbody>';
+
+      if (Array.isArray(payroll)) {
+        payroll.forEach(row => {
+          html += `<tr>
+            <td>${row.employee_name || 'Unknown'}</td>
+            <td>$${parseFloat(row.gross_pay || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.cpp_contribution || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.ei_contribution || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.federal_tax || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.provincial_tax || 0).toFixed(2)}</td>
+            <td style="font-weight: bold; color: #15803d;">$${parseFloat(row.net_pay || 0).toFixed(2)}</td>
+          </tr>`;
+        });
+      }
+
+      html += '</tbody></table>';
+      document.getElementById('payrollResults').innerHTML = html;
+      document.getElementById('resultsModal').classList.add('active');
+    }
+
+    function viewPayrollResults() {
+      const modal = document.getElementById('resultsModal');
+      if (modal.classList.contains('active')) {
+        closeResultsModal();
+      }
+    }
+
+    function closeResultsModal() {
+      document.getElementById('resultsModal').classList.remove('active');
+    }
+
+    function loadReports() {
+      fetch(`/api/payroll-employees?companyId=${company.id}`)
+        .then(r => r.json())
+        .then(data => {
+          const tbody = document.getElementById('reportTable');
+          const emps = data.employees || [];
+          
+          if (!emps.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No employees. Add employees to generate reports.</td></tr>';
+            return;
+          }
+
+          tbody.innerHTML = emps.map(emp => `
+            <tr>
+              <td>${emp.first_name} ${emp.last_name}</td>
+              <td>${emp.code}</td>
+              <td>$${(emp.ytd_gross || 0).toFixed(2)}</td>
+              <td>$${(emp.ytd_net || 0).toFixed(2)}</td>
+              <td>$${(emp.ytd_cpp || 0).toFixed(2)}</td>
+              <td>$${(emp.ytd_ei || 0).toFixed(2)}</td>
+              <td>$${(emp.ytd_tax || 0).toFixed(2)}</td>
+            </tr>
+          `).join('');
+        })
+        .catch(e => {
+          document.getElementById('reportTable').innerHTML = '<tr><td colspan="7" style="text-align: center; color: dc2626;">Error loading reports</td></tr>';
+        });
+    }
+
+    function showMessage(elementId, msg, type) {
+      const el = document.getElementById(elementId);
+      el.textContent = msg;
+      el.className = `message ${type}`;
+      el.style.display = 'block';
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = '/index.html';
+    }
+
+    window.onclick = (e) => {
+      const modal = document.getElementById('resultsModal');
+      if (e.target === modal) closeResultsModal();
+    };
+  </script>
+</body>
+</html>

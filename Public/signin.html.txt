@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APEX PAY - Sign In</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { background: white; border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); max-width: 450px; width: 90%; padding: 40px; }
+    .logo { width: 100px; height: 100px; margin: 0 auto 20px; display: block; }
+    h1 { color: #1e40af; text-align: center; margin-bottom: 30px; font-size: 28px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; color: #1e40af; font-weight: 600; margin-bottom: 8px; }
+    input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 16px; transition: border-color 0.3s ease; }
+    input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
+    button { width: 100%; padding: 12px; background: #1e40af; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-top: 20px; }
+    button:hover { background: #1e3a8a; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(30, 64, 175, 0.3); }
+    button:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
+    .message { margin-top: 15px; padding: 12px; border-radius: 6px; text-align: center; font-weight: 500; }
+    .error { color: #dc2626; background: #fee2e2; display: none; }
+    .success { color: #15803d; background: #dcfce7; display: none; }
+    .link-group { text-align: center; margin-top: 20px; color: #64748b; }
+    .link-group a { color: #1e40af; text-decoration: none; font-weight: 600; }
+    .link-group a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg class="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="95" fill="#1e40af" opacity="0.1"/>
+      <circle cx="100" cy="70" r="35" fill="#1e40af"/>
+      <path d="M 100 50 L 120 65 L 110 65 L 110 85 L 90 85 L 90 65 L 80 65 Z" fill="white"/>
+      <circle cx="100" cy="95" r="18" fill="none" stroke="#1e40af" stroke-width="3"/>
+      <text x="100" y="102" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1e40af" text-anchor="middle">$</text>
+      <text x="100" y="155" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#1e40af" text-anchor="middle">APEX PAY</text>
+      <text x="100" y="175" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">PAYROLL SYSTEM</text>
+    </svg>
+
+    <h1>Sign In</h1>
+
+    <form id="signinForm">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="your@email.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter your password" required>
+      </div>
+
+      <button type="submit" id="submitBtn">Sign In</button>
+    </form>
+
+    <div id="errorMsg" class="message error"></div>
+    <div id="successMsg" class="message success"></div>
+
+    <div class="link-group">
+      Don't have an account? <a href="/signup">Create one</a>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('signinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const errorMsg = document.getElementById('errorMsg');
+      const successMsg = document.getElementById('successMsg');
+      const submitBtn = document.getElementById('submitBtn');
+
+      errorMsg.style.display = 'none';
+      successMsg.style.display = 'none';
+
+      try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Signing In...';
+
+        const response = await fetch('/api/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          successMsg.textContent = '✓ Signed in successfully! Redirecting...';
+          successMsg.style.display = 'block';
+
+          localStorage.setItem('authToken', data.token || 'token_' + Date.now());
+          localStorage.setItem('user', JSON.stringify(data.user));
+
+          setTimeout(() => {
+            const company = JSON.parse(localStorage.getItem('company') || '{}');
+            window.location.href = company.id ? '/dashboard' : '/setup';
+          }, 2000);
+        } else {
+          errorMsg.textContent = '✗ ' + (data.error || 'Sign in failed');
+          errorMsg.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In';
+        }
+      } catch (error) {
+        errorMsg.textContent = '✗ Error: ' + error.message;
+        errorMsg.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+      }
+    });
+  </script>
+</body>
+</html>

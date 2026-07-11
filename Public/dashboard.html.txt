@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APEX PAY - Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
+    .navbar { background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .navbar h1 { font-size: 24px; }
+    .navbar button { background: white; color: #1e40af; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .navbar button:hover { background: #e2e8f0; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+    .trial-banner { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+    .trial-banner.expired { background: #fee2e2; border-left-color: #dc2626; }
+    .trial-banner h2 { color: #1e40af; margin-bottom: 10px; }
+    .trial-banner p { color: #64748b; margin-bottom: 15px; }
+    .trial-banner button { background: #1e40af; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .trial-banner button:hover { background: #1e3a8a; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .card h3 { color: #1e40af; margin-bottom: 15px; font-size: 18px; }
+    .card-info { margin-bottom: 10px; display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+    .card-info label { font-weight: 600; color: #1e40af; }
+    .card-info span { color: #64748b; }
+    .card button { background: #1e40af; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 15px; font-weight: 600; }
+    .card button:hover { background: #1e3a8a; }
+    .edit-btn { background: #64748b; padding: 8px 12px; font-size: 14px; width: auto; margin-top: 10px; }
+    .edit-btn:hover { background: #475569; }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+    .modal-content { background: white; margin: 10% auto; padding: 30px; border-radius: 10px; width: 90%; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .modal-close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .modal-close:hover { color: black; }
+    .modal-header { margin-bottom: 20px; }
+    .modal-header h2 { color: #1e40af; margin-bottom: 10px; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; color: #1e40af; font-weight: 600; margin-bottom: 8px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #1e40af; }
+    .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .modal-buttons button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .save-btn { background: #1e40af; color: white; }
+    .save-btn:hover { background: #1e3a8a; }
+    .cancel-btn { background: #e2e8f0; color: #1e40af; }
+    .cancel-btn:hover { background: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <h1>APEX PAY Dashboard</h1>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <div class="container">
+    <div id="trialBanner" class="trial-banner">
+      <h2 id="trialTitle">🎉 7-Day Free Trial Active</h2>
+      <p id="trialText">You have <strong id="daysLeft">7</strong> days remaining</p>
+      <button id="upgradeBtn" style="display: none;" onclick="goToCheckout()">Upgrade Now - $30/month</button>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Company Information</h3>
+        <div class="card-info">
+          <label>Company Name:</label>
+          <span id="companyName">-</span>
+        </div>
+        <div class="card-info">
+          <label>Company Type:</label>
+          <span id="companyType">-</span>
+        </div>
+        <div class="card-info">
+          <label>Address:</label>
+          <span id="companyAddress">-</span>
+        </div>
+        <div class="card-info">
+          <label>Industry:</label>
+          <span id="industry">-</span>
+        </div>
+        <button class="edit-btn" onclick="openEditModal()">Edit Company Info</button>
+      </div>
+
+      <div class="card">
+        <h3>Account Information</h3>
+        <div class="card-info">
+          <label>Name:</label>
+          <span id="userName">-</span>
+        </div>
+        <div class="card-info">
+          <label>Email:</label>
+          <span id="userEmail">-</span>
+        </div>
+        <div class="card-info">
+          <label>Status:</label>
+          <span id="accountStatus">Active</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Payroll System</h3>
+        <div class="card-info">
+          <label>Payroll Processing:</label>
+          <span id="payrollStatus">Ready</span>
+        </div>
+        <button onclick="goToPayroll()">Open Payroll System</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeEditModal()">&times;</span>
+      <div class="modal-header">
+        <h2>Edit Company Information</h2>
+      </div>
+      <form id="editForm">
+        <div class="form-group">
+          <label for="editCompanyName">Company Name</label>
+          <input type="text" id="editCompanyName" name="companyName" required>
+        </div>
+        <div class="form-group">
+          <label for="editCompanyType">Company Type</label>
+          <select id="editCompanyType" name="companyType" required>
+            <option value="single">Single Company</option>
+            <option value="multi">Multi-Company</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="editCompanyAddress">Company Address</label>
+          <input type="text" id="editCompanyAddress" name="companyAddress" required>
+        </div>
+        <div class="form-group">
+          <label for="editIndustry">Industry</label>
+          <select id="editIndustry" name="industry" required>
+            <option value="">Select...</option>
+            <option value="technology">Technology</option>
+            <option value="healthcare">Healthcare</option>
+            <option value="finance">Finance</option>
+            <option value="retail">Retail</option>
+            <option value="manufacturing">Manufacturing</option>
+            <option value="education">Education</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="modal-buttons">
+          <button type="button" class="cancel-btn" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" class="save-btn">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function calculateTrialDaysRemaining(trialStartDate) {
+      if (!trialStartDate) return 7;
+      const startDate = new Date(trialStartDate);
+      if (isNaN(startDate.getTime())) return 7;
+      const today = new Date();
+      const diffTime = startDate.getTime() + (7 * 24 * 60 * 60 * 1000) - today.getTime();
+      const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return Math.max(0, daysRemaining);
+    }
+
+    function updateTrialStatus() {
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      const daysLeft = calculateTrialDaysRemaining(company.trial_start_date);
+
+      const trialBanner = document.getElementById('trialBanner');
+      const trialTitle = document.getElementById('trialTitle');
+      const trialText = document.getElementById('trialText');
+      const daysLeftEl = document.getElementById('daysLeft');
+      const upgradeBtn = document.getElementById('upgradeBtn');
+
+      if (daysLeft <= 0) {
+        trialBanner.classList.add('expired');
+        trialTitle.textContent = '⚠️ Trial Expired';
+        trialText.textContent = 'Your free trial has ended. Please upgrade to continue using APEX PAY.';
+        upgradeBtn.style.display = 'block';
+        document.getElementById('accountStatus').textContent = 'Trial Expired - Upgrade Required';
+      } else {
+        daysLeftEl.textContent = daysLeft;
+        upgradeBtn.style.display = 'block';
+      }
+    }
+
+    function loadDashboard() {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+
+      document.getElementById('userName').textContent = user.name || '-';
+      document.getElementById('userEmail').textContent = user.email || '-';
+      document.getElementById('companyName').textContent = company.company_name || '-';
+      document.getElementById('companyType').textContent = company.company_type === 'single' ? 'Single Company' : 'Multi-Company';
+      document.getElementById('companyAddress').textContent = company.company_address || '-';
+      document.getElementById('industry').textContent = company.industry || '-';
+
+      updateTrialStatus();
+    }
+
+    function logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('company');
+      window.location.href = '/';
+    }
+
+    function goToPayroll() {
+      window.location.href = '/payroll';
+    }
+
+    function goToCheckout() {
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+      fetch('/api/stripe-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          companyId: company.id,
+          email: user.email
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+        } else {
+          alert('Error: ' + (data.error || 'Could not create checkout'));
+        }
+      })
+      .catch(err => alert('Error: ' + err.message));
+    }
+
+    loadDashboard();
+
+    function openEditModal() {
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      document.getElementById('editCompanyName').value = company.company_name || '';
+      document.getElementById('editCompanyType').value = company.company_type || '';
+      document.getElementById('editCompanyAddress').value = company.company_address || '';
+      document.getElementById('editIndustry').value = company.industry || '';
+      document.getElementById('editModal').style.display = 'block';
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+      const modal = document.getElementById('editModal');
+      if (event.target === modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      const companyName = document.getElementById('editCompanyName').value.trim();
+      const companyType = document.getElementById('editCompanyType').value;
+      const companyAddress = document.getElementById('editCompanyAddress').value.trim();
+      const industry = document.getElementById('editIndustry').value;
+
+      try {
+        const response = await fetch('/api/update-company', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId: company.id,
+            companyName,
+            companyType,
+            companyAddress,
+            industry
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          localStorage.setItem('company', JSON.stringify(data.company));
+          loadDashboard();
+          closeEditModal();
+          alert('Company information updated successfully!');
+        } else {
+          alert('Error: ' + (data.error || 'Update failed'));
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>
