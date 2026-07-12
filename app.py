@@ -11,7 +11,7 @@ import json
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='public', static_url_path='')
+app = Flask(__name__, static_folder='Public', static_url_path='')
 CORS(app)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -498,32 +498,31 @@ def stripe_checkout():
 
 @app.route('/')
 def index():
-    return send_from_directory('public', 'index.html')
+    return send_from_directory('Public', 'index.html')
 
 @app.route('/signup')
 def signup_page():
-    return send_from_directory('public', 'signup.html')
+    return send_from_directory('Public', 'signup.html')
 
 @app.route('/signin')
 def signin_page():
-    return send_from_directory('public', 'signin.html')
+    return send_from_directory('Public', 'signin.html')
 
 @app.route('/setup')
 def setup_page():
-    return send_from_directory('public', 'setup.html')
+    return send_from_directory('Public', 'setup.html')
 
 @app.route('/dashboard')
 def dashboard_page():
-    return send_from_directory('public', 'dashboard.html')
+    return send_from_directory('Public', 'dashboard.html')
 
 @app.route('/payroll')
 def payroll_page():
-    return send_from_directory('public', 'payroll.html')
+    return send_from_directory('Public', 'payroll.html')
 
 @app.route('/<path:filename>')
 def static_files(filename):
-    return send_from_directory('public', filename)
+    return send_from_directory('Public', filename)
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
-
