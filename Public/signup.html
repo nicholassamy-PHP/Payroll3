@@ -98,7 +98,7 @@
           successMsg.style.display = 'block';
 
           localStorage.setItem('authToken', 'token_' + Date.now());
-          localStorage.setItem('user', JSON.stringify({ name, email }));
+          localStorage.setItem('user', JSON.stringify(data.user));
 
           setTimeout(() => {
             window.location.href = '/setup';
