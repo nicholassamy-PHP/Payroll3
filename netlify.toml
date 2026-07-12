@@ -4,7 +4,7 @@ PYTHON_VERSION = "3.12"
 [build]
   command = "pip install -r requirements.txt"
   functions = "functions"
-  publish = "public"
+  publish = "."
 
 [[redirects]]
   from = "/*"
