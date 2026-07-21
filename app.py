@@ -16,6 +16,10 @@ CORS(app)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
+# Assumed number of pay periods per year (biweekly). Used to prorate the
+# annual basic personal amounts so a single paycheque is taxed sensibly.
+PAY_PERIODS_PER_YEAR = 26
+
 def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
@@ -27,7 +31,7 @@ def signup():
     try:
         data = request.json
         name = data.get('name', '').strip()
-        email = data.get('email', '').strip()
+        email = data.get('email', '').strip().lower()
         password = data.get('password', '')
 
         if not name or not email or not password or len(password) < 6:
@@ -46,11 +50,13 @@ def signup():
             )
             conn.commit()
         except psycopg2.IntegrityError:
-            conn.close()
-            return jsonify({'error': 'Email already exists'}), 409
-        finally:
+            conn.rollback()
             cur.close()
             conn.close()
+            return jsonify({'error': 'Email already exists'}), 409
+
+        cur.close()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -64,7 +70,7 @@ def signup():
 def signin():
     try:
         data = request.json
-        email = data.get('email', '').strip()
+        email = data.get('email', '').strip().lower()
         password = data.get('password', '')
 
         if not email or not password:
@@ -79,6 +85,25 @@ def signin():
             (email, password_hash)
         )
         user = cur.fetchone()
+
+        company = None
+        if user:
+            cur.execute(
+                '''SELECT id, company_name, company_type, company_address, industry, trial_start_date
+                   FROM companies WHERE user_id = %s ORDER BY created_at LIMIT 1''',
+                (user[0],)
+            )
+            comp = cur.fetchone()
+            if comp:
+                company = {
+                    'id': comp[0],
+                    'company_name': comp[1],
+                    'company_type': comp[2],
+                    'company_address': comp[3],
+                    'industry': comp[4],
+                    'trial_start_date': comp[5].strftime('%Y-%m-%d') if comp[5] else None
+                }
+
         cur.close()
         conn.close()
 
@@ -89,7 +114,8 @@ def signin():
 
         return jsonify({
             'token': token,
-            'user': {'id': user[0], 'name': user[1], 'email': user[2]}
+            'user': {'id': user[0], 'name': user[1], 'email': user[2]},
+            'company': company
         }), 200
 
     except Exception as e:
@@ -110,11 +136,33 @@ def setup():
         if not user_id or not company_name:
             return jsonify({'error': 'Missing required fields'}), 400
 
-        company_id = str(uuid.uuid4())
-        trial_start_date = datetime.now().strftime('%Y-%m-%d')
-
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # If this user already has a company, return it instead of creating a duplicate.
+        cur.execute(
+            '''SELECT id, company_name, company_type, company_address, industry, trial_start_date
+               FROM companies WHERE user_id = %s ORDER BY created_at LIMIT 1''',
+            (user_id,)
+        )
+        existing = cur.fetchone()
+        if existing:
+            cur.close()
+            conn.close()
+            return jsonify({
+                'success': True,
+                'company': {
+                    'id': existing[0],
+                    'company_name': existing[1],
+                    'company_type': existing[2],
+                    'company_address': existing[3],
+                    'industry': existing[4],
+                    'trial_start_date': existing[5].strftime('%Y-%m-%d') if existing[5] else None
+                }
+            }), 200
+
+        company_id = str(uuid.uuid4())
+        trial_start_date = datetime.now().strftime('%Y-%m-%d')
 
         try:
             cur.execute(
@@ -129,9 +177,9 @@ def setup():
             cur.close()
             conn.close()
             return jsonify({'error': str(e)}), 500
-        finally:
-            cur.close()
-            conn.close()
+
+        cur.close()
+        conn.close()
 
         return jsonify({
             'success': True,
@@ -167,7 +215,7 @@ def update_company():
         try:
             cur.execute(
                 '''UPDATE companies
-                   SET company_name = %s, company_type = %s, company_address = %s, industry = %s
+                   SET company_name = %s, company_type = %s, company_address = %s, industry = %s, updated_at = NOW()
                    WHERE id = %s''',
                 (company_name, company_type, company_address, industry, company_id)
             )
@@ -216,8 +264,19 @@ def get_employees():
 
         conn = get_db_connection()
         cur = conn.cursor()
+        # Pull each employee plus their year-to-date totals (for the Reports tab).
         cur.execute(
-            'SELECT id, first_name, last_name, code, email, active, hire_date FROM employees WHERE company_id = %s ORDER BY last_name, first_name',
+            '''SELECT e.id, e.first_name, e.last_name, e.code, e.email, e.active, e.hire_date, e.pay_rate,
+                      COALESCE(SUM(pr.gross_pay), 0),
+                      COALESCE(SUM(pr.net_pay), 0),
+                      COALESCE(SUM(pr.cpp_contribution), 0),
+                      COALESCE(SUM(pr.ei_contribution), 0),
+                      COALESCE(SUM(pr.federal_tax + pr.provincial_tax), 0)
+               FROM employees e
+               LEFT JOIN payroll_runs pr ON pr.employee_id = e.id
+               WHERE e.company_id = %s
+               GROUP BY e.id, e.first_name, e.last_name, e.code, e.email, e.active, e.hire_date, e.pay_rate
+               ORDER BY e.last_name, e.first_name''',
             (company_id,)
         )
         employees = cur.fetchall()
@@ -233,13 +292,38 @@ def get_employees():
                 'code': emp[3],
                 'email': emp[4],
                 'active': emp[5],
-                'hire_date': emp[6].strftime('%Y-%m-%d') if emp[6] else None
+                'hire_date': emp[6].strftime('%Y-%m-%d') if emp[6] else None,
+                'pay_rate': float(emp[7]) if emp[7] is not None else 0,
+                'ytd_gross': float(emp[8]),
+                'ytd_net': float(emp[9]),
+                'ytd_cpp': float(emp[10]),
+                'ytd_ei': float(emp[11]),
+                'ytd_tax': float(emp[12])
             })
 
         return jsonify({'employees': result}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def _fetch_employee(cur, employee_id):
+    cur.execute(
+        'SELECT id, first_name, last_name, code, email, active, hire_date, pay_rate FROM employees WHERE id = %s',
+        (employee_id,)
+    )
+    emp = cur.fetchone()
+    if not emp:
+        return None
+    return {
+        'id': emp[0],
+        'first_name': emp[1],
+        'last_name': emp[2],
+        'code': emp[3],
+        'email': emp[4],
+        'active': emp[5],
+        'hire_date': emp[6].strftime('%Y-%m-%d') if emp[6] else None,
+        'pay_rate': float(emp[7]) if emp[7] is not None else 0
+    }
 
 @app.route('/api/payroll-employees', methods=['POST'])
 def create_employee():
@@ -251,6 +335,7 @@ def create_employee():
         code = data.get('code', '').strip()
         email = data.get('email', '')
         hire_date = data.get('hireDate')
+        pay_rate = data.get('payRate') or 0
 
         if not company_id or not first_name or not last_name or not code:
             return jsonify({'error': 'First name, last name, and code required'}), 400
@@ -262,37 +347,22 @@ def create_employee():
 
         try:
             cur.execute(
-                '''INSERT INTO employees (id, company_id, first_name, last_name, code, email, hire_date)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-                (employee_id, company_id, first_name, last_name, code, email or None, hire_date or None)
+                '''INSERT INTO employees (id, company_id, first_name, last_name, code, email, hire_date, pay_rate)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
+                (employee_id, company_id, first_name, last_name, code, email or None, hire_date or None, pay_rate)
             )
             conn.commit()
-
-            cur.execute(
-                'SELECT * FROM employees WHERE id = %s',
-                (employee_id,)
-            )
-            emp = cur.fetchone()
-            cur.close()
-            conn.close()
-
-            return jsonify({
-                'success': True,
-                'employee': {
-                    'id': emp[0],
-                    'first_name': emp[3],
-                    'last_name': emp[4],
-                    'code': emp[5],
-                    'email': emp[6],
-                    'active': emp[7],
-                    'hire_date': emp[8].strftime('%Y-%m-%d') if emp[8] else None
-                }
-            }), 201
         except psycopg2.IntegrityError:
             conn.rollback()
             cur.close()
             conn.close()
             return jsonify({'error': 'Employee code already exists'}), 409
+
+        employee = _fetch_employee(cur, employee_id)
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'employee': employee}), 201
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -301,12 +371,7 @@ def create_employee():
 def update_employee():
     try:
         data = request.json
-        employee_id = data.get('employeeId')
-        first_name = data.get('firstName', '').strip()
-        last_name = data.get('lastName', '').strip()
-        email = data.get('email', '')
-        hire_date = data.get('hireDate')
-        active = data.get('active', True)
+        employee_id = data.get('employeeId') or data.get('id')
 
         if not employee_id:
             return jsonify({'error': 'Employee ID required'}), 400
@@ -314,34 +379,33 @@ def update_employee():
         conn = get_db_connection()
         cur = conn.cursor()
 
+        existing = _fetch_employee(cur, employee_id)
+        if not existing:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Employee not found'}), 404
+
+        # Only overwrite fields that were actually provided; keep the rest as-is.
+        first_name = data['firstName'].strip() if 'firstName' in data else existing['first_name']
+        last_name = data['lastName'].strip() if 'lastName' in data else existing['last_name']
+        email = data['email'] if 'email' in data else existing['email']
+        hire_date = data['hireDate'] if 'hireDate' in data else existing['hire_date']
+        active = data['active'] if 'active' in data else existing['active']
+        pay_rate = data['payRate'] if 'payRate' in data else existing['pay_rate']
+
         cur.execute(
             '''UPDATE employees
-               SET first_name = %s, last_name = %s, email = %s, hire_date = %s, active = %s
+               SET first_name = %s, last_name = %s, email = %s, hire_date = %s, active = %s, pay_rate = %s, updated_at = NOW()
                WHERE id = %s''',
-            (first_name, last_name, email, hire_date, active, employee_id)
+            (first_name, last_name, email, hire_date or None, active, pay_rate, employee_id)
         )
         conn.commit()
 
-        cur.execute('SELECT * FROM employees WHERE id = %s', (employee_id,))
-        emp = cur.fetchone()
+        employee = _fetch_employee(cur, employee_id)
         cur.close()
         conn.close()
 
-        if not emp:
-            return jsonify({'error': 'Employee not found'}), 404
-
-        return jsonify({
-            'success': True,
-            'employee': {
-                'id': emp[0],
-                'first_name': emp[3],
-                'last_name': emp[4],
-                'code': emp[5],
-                'email': emp[6],
-                'active': emp[7],
-                'hire_date': emp[8].strftime('%Y-%m-%d') if emp[8] else None
-            }
-        }), 200
+        return jsonify({'success': True, 'employee': employee}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -349,85 +413,114 @@ def update_employee():
 # ==================== PAYROLL CALCULATION ====================
 
 def calculate_taxes(gross_pay):
-    cpp = max(0, min(gross_pay * 0.0595, 3867.50 * 0.0595))
-    ei = gross_pay * 0.0163
-    federal_basic = 15705
-    provincial_basic = 16202
+    cpp = round(max(0.0, gross_pay * 0.0595), 2)
+    ei = round(gross_pay * 0.0163, 2)
 
-    federal_tax = max(0, (gross_pay - cpp - ei - federal_basic) * 0.15)
-    provincial_tax = max(0, (gross_pay - cpp - ei - provincial_basic) * 0.2)
+    federal_basic = 15705 / PAY_PERIODS_PER_YEAR
+    provincial_basic = 16202 / PAY_PERIODS_PER_YEAR
+
+    taxable = gross_pay - cpp - ei
+    federal_tax = round(max(0.0, (taxable - federal_basic) * 0.15), 2)
+    provincial_tax = round(max(0.0, (taxable - provincial_basic) * 0.20), 2)
 
     return {
-        'cpp': round(cpp * 100) / 100,
-        'ei': round(ei * 100) / 100,
-        'federalTax': round(federal_tax * 100) / 100,
-        'provincialTax': round(provincial_tax * 100) / 100
+        'cpp': cpp,
+        'ei': ei,
+        'federalTax': federal_tax,
+        'provincialTax': provincial_tax
     }
 
-def calculate_gross_pay(hours):
-    hourly_rate = 20
-    regular_pay = (hours.get('regular_hours') or 0) * hourly_rate
-    holiday_pay = (hours.get('holiday_paid_hours') or 0) * hourly_rate
-    vacation_pay = (hours.get('vacation_paid_hours') or 0) * hourly_rate
-    special_pay = (hours.get('special_hours') or 0) * hourly_rate
-    maternity_pay = (hours.get('maternity_hours') or 0) * hourly_rate
-    ssl_pay = (hours.get('ssl_hours') or 0) * hourly_rate
+def calculate_gross_pay(hours, pay_rate):
+    rate = float(pay_rate or 0)
+    paid_hours = (
+        (hours.get('regular_hours') or 0)
+        + (hours.get('holiday_paid_hours') or 0)
+        + (hours.get('vacation_paid_hours') or 0)
+        + (hours.get('special_hours') or 0)
+        + (hours.get('maternity_hours') or 0)
+        + (hours.get('ssl_hours') or 0)
+    )
     other_amount = hours.get('other_amount') or 0
-
-    return regular_pay + holiday_pay + vacation_pay + special_pay + maternity_pay + ssl_pay + other_amount
+    return round(paid_hours * rate + other_amount, 2)
 
 @app.route('/api/payroll-calculate', methods=['POST'])
 def calculate_payroll():
     try:
         data = request.json
         company_id = data.get('companyId')
-        period_id = data.get('periodId')
-        hours_data = data.get('hoursData', {})
+        pay_end_date = data.get('payEndDate')
+        payment_date = data.get('paymentDate')
+        hours_map = data.get('hours', {})
 
-        if not company_id or not period_id or not hours_data:
-            return jsonify({'error': 'Missing required fields'}), 400
+        if not company_id or not pay_end_date or not payment_date:
+            return jsonify({'error': 'Company, pay end date and payment date are required'}), 400
+
+        payroll_year = int(str(pay_end_date)[:4])
 
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # Create a new pay period (next number for this year).
         cur.execute(
-            'SELECT * FROM pay_periods WHERE id = %s AND company_id = %s',
-            (period_id, company_id)
+            'SELECT COALESCE(MAX(pay_number), 0) + 1 FROM pay_periods WHERE company_id = %s AND payroll_year = %s',
+            (company_id, payroll_year)
         )
-        period = cur.fetchone()
+        pay_number = cur.fetchone()[0]
 
-        if not period:
-            cur.close()
-            conn.close()
-            return jsonify({'error': 'Period not found'}), 404
+        period_id = str(uuid.uuid4())
+        cur.execute(
+            '''INSERT INTO pay_periods
+               (id, company_id, pay_end_date, payment_date, pay_number, payroll_year, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+            (period_id, company_id, pay_end_date, payment_date, pay_number, payroll_year, 'completed')
+        )
 
         cur.execute(
-            'SELECT * FROM employees WHERE company_id = %s AND active = true',
+            'SELECT id, first_name, last_name, pay_rate FROM employees WHERE company_id = %s AND active = true',
             (company_id,)
         )
         employees = cur.fetchall()
 
-        payroll_runs = []
+        results = []
 
         for emp in employees:
             emp_id = emp[0]
-            emp_hours = hours_data.get(emp_id, {})
+            emp_name = f"{emp[1]} {emp[2]}"
+            pay_rate = emp[3]
+            emp_hours = hours_map.get(emp_id, {})
 
-            gross_pay = calculate_gross_pay(emp_hours)
+            gross_pay = calculate_gross_pay(emp_hours, pay_rate)
             taxes = calculate_taxes(gross_pay)
-            net_pay = gross_pay - taxes['cpp'] - taxes['ei'] - taxes['federalTax'] - taxes['provincialTax']
+            net_pay = round(gross_pay - taxes['cpp'] - taxes['ei'] - taxes['federalTax'] - taxes['provincialTax'], 2)
 
+            # Persist the hours that were entered for this employee/period.
             cur.execute(
-                '''SELECT COALESCE(SUM(gross_pay), 0) as ytd_gross, COALESCE(SUM(net_pay), 0) as ytd_net
+                '''INSERT INTO hours_input
+                   (id, period_id, employee_id, regular_hours, holiday_paid_hours, vacation_paid_hours,
+                    special_hours, maternity_hours, ssl_hours, other_amount)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (period_id, employee_id) DO NOTHING''',
+                (str(uuid.uuid4()), period_id, emp_id,
+                 emp_hours.get('regular_hours') or 0,
+                 emp_hours.get('holiday_paid_hours') or 0,
+                 emp_hours.get('vacation_paid_hours') or 0,
+                 emp_hours.get('special_hours') or 0,
+                 emp_hours.get('maternity_hours') or 0,
+                 emp_hours.get('ssl_hours') or 0,
+                 emp_hours.get('other_amount') or 0)
+            )
+
+            # Year-to-date from earlier periods this year.
+            cur.execute(
+                '''SELECT COALESCE(SUM(gross_pay), 0), COALESCE(SUM(net_pay), 0)
                    FROM payroll_runs WHERE employee_id = %s
                    AND period_id IN (SELECT id FROM pay_periods WHERE company_id = %s AND payroll_year = %s AND pay_number < %s)''',
-                (emp_id, company_id, period[4], period[3])
+                (emp_id, company_id, payroll_year, pay_number)
             )
             ytd_data = cur.fetchone()
-            ytd_gross = ytd_data[0] if ytd_data else 0
-            ytd_net = ytd_data[1] if ytd_data else 0
+            ytd_gross = float(ytd_data[0]) + gross_pay
+            ytd_net = float(ytd_data[1]) + net_pay
 
-            run_id = str(uuid.uuid4())
             cur.execute(
                 '''INSERT INTO payroll_runs
                    (id, period_id, employee_id, gross_pay, cpp_contribution, ei_contribution, federal_tax, provincial_tax, net_pay, ytd_gross, ytd_net)
@@ -441,43 +534,40 @@ def calculate_payroll():
                      net_pay = EXCLUDED.net_pay,
                      ytd_gross = EXCLUDED.ytd_gross,
                      ytd_net = EXCLUDED.ytd_net''',
-                (run_id, period_id, emp_id, gross_pay, taxes['cpp'], taxes['ei'], taxes['federalTax'], taxes['provincialTax'], net_pay, ytd_gross + gross_pay, ytd_net + net_pay)
+                (str(uuid.uuid4()), period_id, emp_id, gross_pay, taxes['cpp'], taxes['ei'],
+                 taxes['federalTax'], taxes['provincialTax'], net_pay, ytd_gross, ytd_net)
             )
 
-            payroll_runs.append({
-                'employee_id': emp_id,
+            results.append({
+                'employee_name': emp_name,
                 'gross_pay': gross_pay,
-                'cpp': taxes['cpp'],
-                'ei': taxes['ei'],
+                'cpp_contribution': taxes['cpp'],
+                'ei_contribution': taxes['ei'],
                 'federal_tax': taxes['federalTax'],
                 'provincial_tax': taxes['provincialTax'],
                 'net_pay': net_pay,
-                'ytd_gross': ytd_gross + gross_pay,
-                'ytd_net': ytd_net + net_pay
+                'ytd_gross': ytd_gross,
+                'ytd_net': ytd_net
             })
-
-        cur.execute(
-            'UPDATE pay_periods SET status = %s WHERE id = %s',
-            ('completed', period_id)
-        )
 
         conn.commit()
         cur.close()
         conn.close()
 
         totals = {
-            'employees_paid': sum(1 for run in payroll_runs if run['gross_pay'] > 0),
-            'gross_total': sum(run['gross_pay'] for run in payroll_runs),
-            'net_total': sum(run['net_pay'] for run in payroll_runs),
-            'cpp_total': sum(run['cpp'] for run in payroll_runs),
-            'ei_total': sum(run['ei'] for run in payroll_runs),
-            'tax_total': sum(run['federal_tax'] + run['provincial_tax'] for run in payroll_runs)
+            'employees_paid': sum(1 for r in results if r['gross_pay'] > 0),
+            'gross_total': round(sum(r['gross_pay'] for r in results), 2),
+            'net_total': round(sum(r['net_pay'] for r in results), 2),
+            'cpp_total': round(sum(r['cpp_contribution'] for r in results), 2),
+            'ei_total': round(sum(r['ei_contribution'] for r in results), 2),
+            'tax_total': round(sum(r['federal_tax'] + r['provincial_tax'] for r in results), 2)
         }
 
         return jsonify({
             'success': True,
-            'payrollRuns': payroll_runs,
-            'totals': totals
+            'payroll': results,
+            'totals': totals,
+            'payNumber': pay_number
         }), 200
 
     except Exception as e:
