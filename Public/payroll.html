@@ -149,9 +149,15 @@
               <input type="email" id="employeeEmail" name="employeeEmail" required>
             </div>
           </div>
-          <div class="form-group">
-            <label for="hireDate">Hire Date</label>
-            <input type="date" id="hireDate" name="hireDate" required>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="hireDate">Hire Date</label>
+              <input type="date" id="hireDate" name="hireDate" required>
+            </div>
+            <div class="form-group">
+              <label for="payRate">Pay Rate ($ / hour)</label>
+              <input type="number" step="0.01" min="0" id="payRate" name="payRate" placeholder="20.00" required>
+            </div>
           </div>
           <button type="submit" class="btn">Add Employee</button>
         </form>
@@ -167,13 +173,14 @@
               <th>Name</th>
               <th>Code</th>
               <th>Email</th>
+              <th>Pay Rate</th>
               <th>Hire Date</th>
               <th>Status</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody id="employeeTable">
-            <tr><td colspan="6" style="text-align: center; color: #64748b;">Loading employees...</td></tr>
+            <tr><td colspan="7" style="text-align: center; color: #64748b;">Loading employees...</td></tr>
           </tbody>
         </table>
       </div>
@@ -281,7 +288,10 @@
       fetch(`/api/payroll-employees?companyId=${company.id}`)
         .then(r => r.json())
         .then(data => {
-          document.getElementById('totalEmployees').textContent = data.employees ? data.employees.length : 0;
+          const emps = data.employees || [];
+          document.getElementById('totalEmployees').textContent = emps.length;
+          const ytdGross = emps.reduce((sum, e) => sum + (e.ytd_gross || 0), 0);
+          document.getElementById('ytdGross').textContent = '$' + ytdGross.toFixed(2);
         })
         .catch(e => console.log('Error loading employees for dashboard:', e));
     }
@@ -301,7 +311,7 @@
     function renderEmployeeTable() {
       const tbody = document.getElementById('employeeTable');
       if (!employees.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #64748b;">No employees yet. Add one above.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No employees yet. Add one above.</td></tr>';
         return;
       }
 
@@ -309,8 +319,9 @@
         <tr>
           <td>${emp.first_name} ${emp.last_name}</td>
           <td>${emp.code}</td>
-          <td>${emp.email}</td>
-          <td>${emp.hire_date}</td>
+          <td>${emp.email || ''}</td>
+          <td>$${(emp.pay_rate || 0).toFixed(2)}/hr</td>
+          <td>${emp.hire_date || ''}</td>
           <td>${emp.active ? '✓ Active' : 'Inactive'}</td>
           <td>
             <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="toggleEmployee('${emp.id}')">
@@ -332,7 +343,8 @@
         lastName: document.getElementById('lastName').value.trim(),
         code: document.getElementById('employeeCode').value.trim(),
         email: document.getElementById('employeeEmail').value.trim(),
-        hireDate: document.getElementById('hireDate').value
+        hireDate: document.getElementById('hireDate').value,
+        payRate: parseFloat(document.getElementById('payRate').value) || 0
       };
 
       fetch('/api/payroll-employees', {
@@ -342,7 +354,7 @@
       })
       .then(r => r.json())
       .then(data => {
-        if (data.id) {
+        if (data.success) {
           showMessage('employeeMsg', '✓ Employee added successfully!', 'success');
           document.getElementById('employeeForm').reset();
           loadEmployees();
@@ -361,14 +373,16 @@
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: empId,
+          employeeId: empId,
           active: !emp.active
         })
       })
       .then(r => r.json())
       .then(data => {
-        if (data.id) {
+        if (data.success) {
           loadEmployees();
+        } else {
+          showMessage('employeeMsg2', '✗ ' + (data.error || 'Failed to update employee'), 'error');
         }
       })
       .catch(e => console.log('Error updating employee:', e));
