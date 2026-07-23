@@ -16,13 +16,138 @@ CORS(app)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
-# Assumed number of pay periods per year (biweekly). Used to prorate the
-# annual basic personal amounts so a single paycheque is taxed sensibly.
-PAY_PERIODS_PER_YEAR = 26
-
 def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
+
+# ==================== TAX TABLES (year-keyed) ====================
+# To update for a new year: copy the latest block, change the ~15 numbers to
+# match the official Revenu Quebec + CRA source-deduction guides, and add it
+# under the new year key. The calculation logic below never needs to change.
+# A payroll run always uses the block matching its pay-period year, so past
+# paycheques stay correct.
+#
+# Sources for 2026 (verify each January):
+#   Revenu Quebec - Employers: Principal Changes for 2026
+#   CRA T4127 Payroll Deductions Formulas / PDOC
+INF = float('inf')
+
+TAX_YEARS = {
+    2026: {
+        'qpp': {
+            'max_pensionable': 74600.0,     # YMPE
+            'basic_exemption': 3500.0,
+            'rate': 0.063,                  # employee first-tier (5.3% base + 1.0% enhancement)
+            'qpp2_ceiling': 85000.0,        # YAMPE
+            'qpp2_rate': 0.04,              # second additional plan
+        },
+        'qpip': {
+            'max_insurable': 103000.0,
+            'employee_rate': 0.00430,
+            'employer_rate': 0.00602,
+        },
+        'ei': {
+            'max_insurable': 68900.0,
+            'employee_rate': 0.0130,        # Quebec reduced employee rate
+            'employer_rate': 0.0182,
+        },
+        'federal': {
+            'basic_personal_amount': 16452.0,
+            'quebec_abatement': 0.165,      # reduces federal tax for Quebec residents
+            'brackets': [
+                (58523.0, 0.14),
+                (117045.0, 0.205),
+                (181440.0, 0.26),
+                (258482.0, 0.29),
+                (INF, 0.33),
+            ],
+        },
+        'quebec': {
+            'basic_personal_amount': 18952.0,
+            'brackets': [
+                (51780.0, 0.14),
+                (103545.0, 0.19),
+                (126000.0, 0.24),
+                (INF, 0.2575),
+            ],
+        },
+    },
+}
+
+DEFAULT_TAX_YEAR = 2026
+
+def _bracket_tax(annual_income, brackets):
+    """Progressive tax on an annual amount given [(upper_threshold, rate), ...]."""
+    tax = 0.0
+    lower = 0.0
+    for upper, rate in brackets:
+        if annual_income > lower:
+            taxed = min(annual_income, upper) - lower
+            tax += taxed * rate
+            lower = upper
+        else:
+            break
+    return tax
+
+def calculate_quebec_deductions(gross_pay, periods_per_year, year=DEFAULT_TAX_YEAR):
+    """
+    Estimate Quebec source deductions for one pay period using the annualized
+    formula method (income x periods -> annual amounts -> divide back).
+
+    This is an ESTIMATE for a standard employee. It must be validated against
+    the CRA PDOC and Revenu Quebec WinRAS calculators before real-world use.
+    Returns a dict of per-period amounts.
+    """
+    cfg = TAX_YEARS.get(int(year), TAX_YEARS[DEFAULT_TAX_YEAR])
+    p = periods_per_year if periods_per_year and periods_per_year > 0 else 26
+    annual = gross_pay * p
+
+    # --- QPP (first tier + QPP2) ---
+    q = cfg['qpp']
+    contributory = max(0.0, min(annual, q['max_pensionable']) - q['basic_exemption'])
+    qpp_annual = contributory * q['rate']
+    qpp2_contributory = max(0.0, min(annual, q['qpp2_ceiling']) - q['max_pensionable'])
+    qpp2_annual = qpp2_contributory * q['qpp2_rate']
+
+    # --- EI (Quebec reduced) ---
+    ei = cfg['ei']
+    ei_annual = min(annual, ei['max_insurable']) * ei['employee_rate']
+
+    # --- QPIP ---
+    qpip = cfg['qpip']
+    qpip_annual = min(annual, qpip['max_insurable']) * qpip['employee_rate']
+
+    # Non-refundable credits are given at the lowest rate (14%) on the basic
+    # personal amount plus the QPP/EI/QPIP contributions.
+    credit_base = qpp_annual + ei_annual + qpip_annual
+
+    # --- Federal income tax (with Quebec abatement) ---
+    fed = cfg['federal']
+    fed_basic = _bracket_tax(annual, fed['brackets'])
+    fed_credits = 0.14 * (fed['basic_personal_amount'] + credit_base)
+    fed_tax_annual = max(0.0, fed_basic - fed_credits) * (1 - fed['quebec_abatement'])
+
+    # --- Quebec income tax ---
+    qc = cfg['quebec']
+    qc_basic = _bracket_tax(annual, qc['brackets'])
+    qc_credits = 0.14 * (qc['basic_personal_amount'] + credit_base)
+    qc_tax_annual = max(0.0, qc_basic - qc_credits)
+
+    qpp = round((qpp_annual + qpp2_annual) / p, 2)
+    ei_amt = round(ei_annual / p, 2)
+    qpip_amt = round(qpip_annual / p, 2)
+    federal_tax = round(fed_tax_annual / p, 2)
+    quebec_tax = round(qc_tax_annual / p, 2)
+    net = round(gross_pay - qpp - ei_amt - qpip_amt - federal_tax - quebec_tax, 2)
+
+    return {
+        'qpp': qpp,
+        'qpip': qpip_amt,
+        'ei': ei_amt,
+        'federal_tax': federal_tax,
+        'quebec_tax': quebec_tax,
+        'net_pay': net,
+    }
 
 # ==================== AUTHENTICATION ====================
 
@@ -270,6 +395,7 @@ def get_employees():
                       COALESCE(SUM(pr.gross_pay), 0),
                       COALESCE(SUM(pr.net_pay), 0),
                       COALESCE(SUM(pr.cpp_contribution), 0),
+                      COALESCE(SUM(pr.qpip_contribution), 0),
                       COALESCE(SUM(pr.ei_contribution), 0),
                       COALESCE(SUM(pr.federal_tax + pr.provincial_tax), 0)
                FROM employees e
@@ -296,9 +422,10 @@ def get_employees():
                 'pay_rate': float(emp[7]) if emp[7] is not None else 0,
                 'ytd_gross': float(emp[8]),
                 'ytd_net': float(emp[9]),
-                'ytd_cpp': float(emp[10]),
-                'ytd_ei': float(emp[11]),
-                'ytd_tax': float(emp[12])
+                'ytd_qpp': float(emp[10]),
+                'ytd_qpip': float(emp[11]),
+                'ytd_ei': float(emp[12]),
+                'ytd_tax': float(emp[13])
             })
 
         return jsonify({'employees': result}), 200
@@ -412,23 +539,13 @@ def update_employee():
 
 # ==================== PAYROLL CALCULATION ====================
 
-def calculate_taxes(gross_pay):
-    cpp = round(max(0.0, gross_pay * 0.0595), 2)
-    ei = round(gross_pay * 0.0163, 2)
-
-    federal_basic = 15705 / PAY_PERIODS_PER_YEAR
-    provincial_basic = 16202 / PAY_PERIODS_PER_YEAR
-
-    taxable = gross_pay - cpp - ei
-    federal_tax = round(max(0.0, (taxable - federal_basic) * 0.15), 2)
-    provincial_tax = round(max(0.0, (taxable - provincial_basic) * 0.20), 2)
-
-    return {
-        'cpp': cpp,
-        'ei': ei,
-        'federalTax': federal_tax,
-        'provincialTax': provincial_tax
-    }
+# Pay frequency label -> number of pay periods per year (used to annualize).
+PERIODS_PER_YEAR = {
+    'weekly': 52,
+    'biweekly': 26,
+    'semimonthly': 24,
+    'monthly': 12,
+}
 
 def calculate_gross_pay(hours, pay_rate):
     rate = float(pay_rate or 0)
@@ -451,6 +568,8 @@ def calculate_payroll():
         pay_end_date = data.get('payEndDate')
         payment_date = data.get('paymentDate')
         hours_map = data.get('hours', {})
+        pay_frequency = data.get('payFrequency', 'biweekly')
+        periods_per_year = PERIODS_PER_YEAR.get(pay_frequency, 26)
 
         if not company_id or not pay_end_date or not payment_date:
             return jsonify({'error': 'Company, pay end date and payment date are required'}), 400
@@ -490,8 +609,8 @@ def calculate_payroll():
             emp_hours = hours_map.get(emp_id, {})
 
             gross_pay = calculate_gross_pay(emp_hours, pay_rate)
-            taxes = calculate_taxes(gross_pay)
-            net_pay = round(gross_pay - taxes['cpp'] - taxes['ei'] - taxes['federalTax'] - taxes['provincialTax'], 2)
+            d = calculate_quebec_deductions(gross_pay, periods_per_year, payroll_year)
+            net_pay = d['net_pay']
 
             # Persist the hours that were entered for this employee/period.
             cur.execute(
@@ -521,30 +640,35 @@ def calculate_payroll():
             ytd_gross = float(ytd_data[0]) + gross_pay
             ytd_net = float(ytd_data[1]) + net_pay
 
+            # payroll_runs columns are reused for Quebec:
+            #   cpp_contribution -> QPP, provincial_tax -> Quebec tax,
+            #   qpip_contribution -> QPIP (added via migration).
             cur.execute(
                 '''INSERT INTO payroll_runs
-                   (id, period_id, employee_id, gross_pay, cpp_contribution, ei_contribution, federal_tax, provincial_tax, net_pay, ytd_gross, ytd_net)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   (id, period_id, employee_id, gross_pay, cpp_contribution, qpip_contribution, ei_contribution, federal_tax, provincial_tax, net_pay, ytd_gross, ytd_net)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (period_id, employee_id) DO UPDATE SET
                      gross_pay = EXCLUDED.gross_pay,
                      cpp_contribution = EXCLUDED.cpp_contribution,
+                     qpip_contribution = EXCLUDED.qpip_contribution,
                      ei_contribution = EXCLUDED.ei_contribution,
                      federal_tax = EXCLUDED.federal_tax,
                      provincial_tax = EXCLUDED.provincial_tax,
                      net_pay = EXCLUDED.net_pay,
                      ytd_gross = EXCLUDED.ytd_gross,
                      ytd_net = EXCLUDED.ytd_net''',
-                (str(uuid.uuid4()), period_id, emp_id, gross_pay, taxes['cpp'], taxes['ei'],
-                 taxes['federalTax'], taxes['provincialTax'], net_pay, ytd_gross, ytd_net)
+                (str(uuid.uuid4()), period_id, emp_id, gross_pay, d['qpp'], d['qpip'], d['ei'],
+                 d['federal_tax'], d['quebec_tax'], net_pay, ytd_gross, ytd_net)
             )
 
             results.append({
                 'employee_name': emp_name,
                 'gross_pay': gross_pay,
-                'cpp_contribution': taxes['cpp'],
-                'ei_contribution': taxes['ei'],
-                'federal_tax': taxes['federalTax'],
-                'provincial_tax': taxes['provincialTax'],
+                'qpp': d['qpp'],
+                'qpip': d['qpip'],
+                'ei': d['ei'],
+                'federal_tax': d['federal_tax'],
+                'quebec_tax': d['quebec_tax'],
                 'net_pay': net_pay,
                 'ytd_gross': ytd_gross,
                 'ytd_net': ytd_net
@@ -558,9 +682,10 @@ def calculate_payroll():
             'employees_paid': sum(1 for r in results if r['gross_pay'] > 0),
             'gross_total': round(sum(r['gross_pay'] for r in results), 2),
             'net_total': round(sum(r['net_pay'] for r in results), 2),
-            'cpp_total': round(sum(r['cpp_contribution'] for r in results), 2),
-            'ei_total': round(sum(r['ei_contribution'] for r in results), 2),
-            'tax_total': round(sum(r['federal_tax'] + r['provincial_tax'] for r in results), 2)
+            'qpp_total': round(sum(r['qpp'] for r in results), 2),
+            'qpip_total': round(sum(r['qpip'] for r in results), 2),
+            'ei_total': round(sum(r['ei'] for r in results), 2),
+            'tax_total': round(sum(r['federal_tax'] + r['quebec_tax'] for r in results), 2)
         }
 
         return jsonify({
