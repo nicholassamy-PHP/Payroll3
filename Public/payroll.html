@@ -457,6 +457,12 @@
         hours: hoursMap
       };
 
+      // Remember the run context so we can print pay stubs.
+      window._payrollContext = {
+        payEndDate, paymentDate,
+        payFrequency: document.getElementById('payFrequency').selectedOptions[0].text
+      };
+
       fetch('/api/payroll-calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -466,7 +472,7 @@
       .then(data => {
         if (data.success) {
           showMessage('payrollMsg', '✓ Payroll calculated successfully!', 'success');
-          displayPayrollResults(data.payroll);
+          displayPayrollResults(data);
         } else {
           showMessage('payrollMsg', '✗ ' + (data.error || 'Calculation failed'), 'error');
         }
@@ -474,29 +480,101 @@
       .catch(e => showMessage('payrollMsg', '✗ Error: ' + e.message, 'error'));
     }
 
-    function displayPayrollResults(payroll) {
-      let html = '<table style="font-size: 14px;"><thead><tr>';
-      html += '<th>Employee</th><th>Gross</th><th>QPP</th><th>QPIP</th><th>EI</th><th>Federal Tax</th><th>Quebec Tax</th><th>Net Pay</th>';
+    function money(v) { return '$' + parseFloat(v || 0).toFixed(2); }
+
+    function displayPayrollResults(data) {
+      const payroll = data.payroll || [];
+      window._payrollRows = payroll;
+
+      let html = '<div style="overflow-x:auto;"><table style="font-size: 14px;"><thead><tr>';
+      html += '<th>Employee</th><th>Gross</th><th>QPP</th><th>QPIP</th><th>EI</th><th>Federal Tax</th><th>Quebec Tax</th><th>Net Pay</th><th></th>';
       html += '</tr></thead><tbody>';
 
-      if (Array.isArray(payroll)) {
-        payroll.forEach(row => {
-          html += `<tr>
-            <td>${row.employee_name || 'Unknown'}</td>
-            <td>$${parseFloat(row.gross_pay || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.qpp || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.qpip || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.ei || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.federal_tax || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.quebec_tax || 0).toFixed(2)}</td>
-            <td style="font-weight: bold; color: #15803d;">$${parseFloat(row.net_pay || 0).toFixed(2)}</td>
-          </tr>`;
-        });
+      payroll.forEach((row, i) => {
+        html += `<tr>
+          <td>${row.employee_name || 'Unknown'}</td>
+          <td>${money(row.gross_pay)}</td>
+          <td>${money(row.qpp)}</td>
+          <td>${money(row.qpip)}</td>
+          <td>${money(row.ei)}</td>
+          <td>${money(row.federal_tax)}</td>
+          <td>${money(row.quebec_tax)}</td>
+          <td style="font-weight: bold; color: #15803d;">${money(row.net_pay)}</td>
+          <td><button class="btn" style="padding:6px 10px;font-size:12px;" onclick="printStub(${i})">🖨 Stub</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+
+      // Remittance summary
+      const r = data.remittance;
+      if (r) {
+        html += `<h3 style="color:#1e40af;margin:24px 0 10px;">Remittance Summary — what to remit for this pay run</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+            <div style="border:2px solid #e2e8f0;border-radius:8px;padding:16px;">
+              <h4 style="color:#1e40af;margin-bottom:8px;">CRA (federal)</h4>
+              <div>Federal income tax: ${money(r.cra.federal_income_tax)}</div>
+              <div>EI — employee: ${money(r.cra.ei_employee)}</div>
+              <div>EI — employer: ${money(r.cra.ei_employer)}</div>
+              <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">Total to CRA: ${money(r.cra.total)}</div>
+            </div>
+            <div style="border:2px solid #e2e8f0;border-radius:8px;padding:16px;">
+              <h4 style="color:#1e40af;margin-bottom:8px;">Revenu Québec</h4>
+              <div>Quebec income tax: ${money(r.revenu_quebec.quebec_income_tax)}</div>
+              <div>QPP — employee: ${money(r.revenu_quebec.qpp_employee)}</div>
+              <div>QPP — employer: ${money(r.revenu_quebec.qpp_employer)}</div>
+              <div>QPIP — employee: ${money(r.revenu_quebec.qpip_employee)}</div>
+              <div>QPIP — employer: ${money(r.revenu_quebec.qpip_employer)}</div>
+              <div>Health Services Fund (FSS): ${money(r.revenu_quebec.fss_employer)}</div>
+              <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">Total to Revenu Québec: ${money(r.revenu_quebec.total)}</div>
+            </div>
+          </div>`;
       }
 
-      html += '</tbody></table>';
+      html += `<p style="margin-top:18px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;font-size:13px;">
+        ⚠️ <strong>Estimate.</strong> Deductions are calculated with 2026 Quebec/CRA rates for guidance. Final amounts should be confirmed by your accountant before filing or remitting. FSS (Health Services Fund) shows $0 until your company's assigned rate is set.
+      </p>`;
+
       document.getElementById('payrollResults').innerHTML = html;
       document.getElementById('resultsModal').classList.add('active');
+    }
+
+    function printStub(i) {
+      const row = (window._payrollRows || [])[i];
+      if (!row) return;
+      const ctx = window._payrollContext || {};
+      const ded = (parseFloat(row.qpp)+parseFloat(row.qpip)+parseFloat(row.ei)+parseFloat(row.federal_tax)+parseFloat(row.quebec_tax)).toFixed(2);
+      const w = window.open('', '_blank', 'width=700,height=800');
+      w.document.write(`<!DOCTYPE html><html><head><title>Pay Stub - ${row.employee_name}</title>
+        <style>
+          body{font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;padding:32px;max-width:640px;margin:0 auto;}
+          h1{color:#1e40af;font-size:22px;margin-bottom:2px;} .sub{color:#64748b;margin-bottom:20px;}
+          table{width:100%;border-collapse:collapse;margin-top:12px;} td{padding:8px 4px;border-bottom:1px solid #e5e7eb;}
+          .r{text-align:right;} .tot{font-weight:bold;font-size:18px;} .sec{color:#1e40af;font-weight:bold;padding-top:16px;}
+          .net{background:#f0fdf4;color:#15803d;font-weight:bold;font-size:20px;}
+          .note{margin-top:24px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px;border-radius:6px;}
+          @media print{button{display:none;}}
+        </style></head><body>
+        <h1>${(JSON.parse(localStorage.getItem('company')||'{}')).company_name || 'APEX PAY'}</h1>
+        <div class="sub">Pay Stub</div>
+        <table>
+          <tr><td>Employee</td><td class="r">${row.employee_name} ${row.employee_code ? '('+row.employee_code+')' : ''}</td></tr>
+          <tr><td>Pay period end</td><td class="r">${ctx.payEndDate||''}</td></tr>
+          <tr><td>Payment date</td><td class="r">${ctx.paymentDate||''}</td></tr>
+          <tr><td>Frequency</td><td class="r">${ctx.payFrequency||''}</td></tr>
+          <tr><td class="sec">Gross pay</td><td class="r tot">${money(row.gross_pay)}</td></tr>
+          <tr><td class="sec" colspan="2">Deductions</td></tr>
+          <tr><td>QPP</td><td class="r">-${money(row.qpp)}</td></tr>
+          <tr><td>QPIP</td><td class="r">-${money(row.qpip)}</td></tr>
+          <tr><td>EI</td><td class="r">-${money(row.ei)}</td></tr>
+          <tr><td>Federal tax</td><td class="r">-${money(row.federal_tax)}</td></tr>
+          <tr><td>Quebec tax</td><td class="r">-${money(row.quebec_tax)}</td></tr>
+          <tr><td>Total deductions</td><td class="r">-$${ded}</td></tr>
+          <tr class="net"><td>NET PAY</td><td class="r">${money(row.net_pay)}</td></tr>
+        </table>
+        <div class="note">Estimate generated by APEX PAY using 2026 Quebec/CRA rates. Confirm with your accountant before relying on these figures.</div>
+        <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>
+        </body></html>`);
+      w.document.close();
     }
 
     function viewPayrollResults() {
@@ -559,4 +637,5 @@
   </script>
 </body>
 </html>
+
 
