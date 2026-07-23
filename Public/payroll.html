@@ -199,6 +199,15 @@
             <label for="paymentDate">Payment Date</label>
             <input type="date" id="paymentDate" required>
           </div>
+          <div class="form-group">
+            <label for="payFrequency">Pay Frequency</label>
+            <select id="payFrequency">
+              <option value="weekly">Weekly (52/yr)</option>
+              <option value="biweekly" selected>Bi-weekly (26/yr)</option>
+              <option value="semimonthly">Semi-monthly (24/yr)</option>
+              <option value="monthly">Monthly (12/yr)</option>
+            </select>
+          </div>
         </div>
         <div id="payrollMsg" class="message" style="display: none;"></div>
       </div>
@@ -224,13 +233,14 @@
               <th>Employee Code</th>
               <th>YTD Gross</th>
               <th>YTD Net</th>
-              <th>YTD CPP</th>
+              <th>YTD QPP</th>
+              <th>YTD QPIP</th>
               <th>YTD EI</th>
               <th>YTD Tax</th>
             </tr>
           </thead>
           <tbody id="reportTable">
-            <tr><td colspan="7" style="text-align: center; color: #64748b;">Loading report data...</td></tr>
+            <tr><td colspan="8" style="text-align: center; color: #64748b;">Loading report data...</td></tr>
           </tbody>
         </table>
       </div>
@@ -443,6 +453,7 @@
         companyId: company.id,
         payEndDate,
         paymentDate,
+        payFrequency: document.getElementById('payFrequency').value,
         hours: hoursMap
       };
 
@@ -465,7 +476,7 @@
 
     function displayPayrollResults(payroll) {
       let html = '<table style="font-size: 14px;"><thead><tr>';
-      html += '<th>Employee</th><th>Gross</th><th>CPP</th><th>EI</th><th>Federal Tax</th><th>Provincial Tax</th><th>Net Pay</th>';
+      html += '<th>Employee</th><th>Gross</th><th>QPP</th><th>QPIP</th><th>EI</th><th>Federal Tax</th><th>Quebec Tax</th><th>Net Pay</th>';
       html += '</tr></thead><tbody>';
 
       if (Array.isArray(payroll)) {
@@ -473,10 +484,11 @@
           html += `<tr>
             <td>${row.employee_name || 'Unknown'}</td>
             <td>$${parseFloat(row.gross_pay || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.cpp_contribution || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.ei_contribution || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.qpp || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.qpip || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.ei || 0).toFixed(2)}</td>
             <td>$${parseFloat(row.federal_tax || 0).toFixed(2)}</td>
-            <td>$${parseFloat(row.provincial_tax || 0).toFixed(2)}</td>
+            <td>$${parseFloat(row.quebec_tax || 0).toFixed(2)}</td>
             <td style="font-weight: bold; color: #15803d;">$${parseFloat(row.net_pay || 0).toFixed(2)}</td>
           </tr>`;
         });
@@ -506,7 +518,7 @@
           const emps = data.employees || [];
           
           if (!emps.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No employees. Add employees to generate reports.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #64748b;">No employees. Add employees to generate reports.</td></tr>';
             return;
           }
 
@@ -516,14 +528,15 @@
               <td>${emp.code}</td>
               <td>$${(emp.ytd_gross || 0).toFixed(2)}</td>
               <td>$${(emp.ytd_net || 0).toFixed(2)}</td>
-              <td>$${(emp.ytd_cpp || 0).toFixed(2)}</td>
+              <td>$${(emp.ytd_qpp || 0).toFixed(2)}</td>
+              <td>$${(emp.ytd_qpip || 0).toFixed(2)}</td>
               <td>$${(emp.ytd_ei || 0).toFixed(2)}</td>
               <td>$${(emp.ytd_tax || 0).toFixed(2)}</td>
             </tr>
           `).join('');
         })
         .catch(e => {
-          document.getElementById('reportTable').innerHTML = '<tr><td colspan="7" style="text-align: center; color: dc2626;">Error loading reports</td></tr>';
+          document.getElementById('reportTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #dc2626;">Error loading reports</td></tr>';
         });
     }
 
@@ -546,3 +559,4 @@
   </script>
 </body>
 </html>
+
