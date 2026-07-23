@@ -37,10 +37,13 @@ TAX_YEARS = {
         'qpp': {
             'max_pensionable': 74600.0,     # YMPE
             'basic_exemption': 3500.0,
-            'rate': 0.063,                  # employee first-tier (5.3% base + 1.0% enhancement)
+            'base_rate': 0.053,             # base plan (credited against tax)
+            'enhancement_rate': 0.010,      # first additional (deducted from income)
             'qpp2_ceiling': 85000.0,        # YAMPE
-            'qpp2_rate': 0.04,              # second additional plan
+            'qpp2_rate': 0.04,              # second additional (deducted from income)
         },
+        'ei_employer_multiple': 1.4,        # employer EI = 1.4x employee
+        'fss_rate': 0.0,                    # employer Health Services Fund - SET per company (Revenu Quebec assigns 1.25%-4.26%)
         'qpip': {
             'max_insurable': 103000.0,
             'employee_rate': 0.00430,
@@ -102,12 +105,15 @@ def calculate_quebec_deductions(gross_pay, periods_per_year, year=DEFAULT_TAX_YE
     p = periods_per_year if periods_per_year and periods_per_year > 0 else 26
     annual = gross_pay * p
 
-    # --- QPP (first tier + QPP2) ---
+    # --- QPP: base (credited) vs enhanced (deducted from income) ---
     q = cfg['qpp']
     contributory = max(0.0, min(annual, q['max_pensionable']) - q['basic_exemption'])
-    qpp_annual = contributory * q['rate']
+    qpp_base = contributory * q['base_rate']
+    qpp_enh = contributory * q['enhancement_rate']
     qpp2_contributory = max(0.0, min(annual, q['qpp2_ceiling']) - q['max_pensionable'])
-    qpp2_annual = qpp2_contributory * q['qpp2_rate']
+    qpp2 = qpp2_contributory * q['qpp2_rate']
+    qpp_total_annual = qpp_base + qpp_enh + qpp2
+    enhancement_deduction = qpp_enh + qpp2   # reduces taxable income
 
     # --- EI (Quebec reduced) ---
     ei = cfg['ei']
@@ -117,36 +123,49 @@ def calculate_quebec_deductions(gross_pay, periods_per_year, year=DEFAULT_TAX_YE
     qpip = cfg['qpip']
     qpip_annual = min(annual, qpip['max_insurable']) * qpip['employee_rate']
 
-    # Non-refundable credits are given at the lowest rate (14%) on the basic
-    # personal amount plus the QPP/EI/QPIP contributions.
-    credit_base = qpp_annual + ei_annual + qpip_annual
+    # Taxable income = income minus the QPP enhancement deduction.
+    taxable = annual - enhancement_deduction
+
+    # Non-refundable credits at the lowest rate (14%): basic personal amount
+    # plus base QPP + EI + QPIP.
+    credit_contribs = qpp_base + ei_annual + qpip_annual
 
     # --- Federal income tax (with Quebec abatement) ---
     fed = cfg['federal']
-    fed_basic = _bracket_tax(annual, fed['brackets'])
-    fed_credits = 0.14 * (fed['basic_personal_amount'] + credit_base)
+    fed_basic = _bracket_tax(taxable, fed['brackets'])
+    fed_credits = 0.14 * (fed['basic_personal_amount'] + credit_contribs)
     fed_tax_annual = max(0.0, fed_basic - fed_credits) * (1 - fed['quebec_abatement'])
 
     # --- Quebec income tax ---
     qc = cfg['quebec']
-    qc_basic = _bracket_tax(annual, qc['brackets'])
-    qc_credits = 0.14 * (qc['basic_personal_amount'] + credit_base)
+    qc_basic = _bracket_tax(taxable, qc['brackets'])
+    qc_credits = 0.14 * (qc['basic_personal_amount'] + credit_contribs)
     qc_tax_annual = max(0.0, qc_basic - qc_credits)
 
-    qpp = round((qpp_annual + qpp2_annual) / p, 2)
+    qpp_amt = round(qpp_total_annual / p, 2)
     ei_amt = round(ei_annual / p, 2)
     qpip_amt = round(qpip_annual / p, 2)
     federal_tax = round(fed_tax_annual / p, 2)
     quebec_tax = round(qc_tax_annual / p, 2)
-    net = round(gross_pay - qpp - ei_amt - qpip_amt - federal_tax - quebec_tax, 2)
+    net = round(gross_pay - qpp_amt - ei_amt - qpip_amt - federal_tax - quebec_tax, 2)
+
+    # --- Employer contributions (for remittance reports) ---
+    employer_qpp = qpp_amt  # employer matches employee QPP
+    employer_ei = round((ei_annual * cfg.get('ei_employer_multiple', 1.4)) / p, 2)
+    employer_qpip = round((min(annual, qpip['max_insurable']) * qpip['employer_rate']) / p, 2)
+    employer_fss = round((annual * cfg.get('fss_rate', 0.0)) / p, 2)
 
     return {
-        'qpp': qpp,
+        'qpp': qpp_amt,
         'qpip': qpip_amt,
         'ei': ei_amt,
         'federal_tax': federal_tax,
         'quebec_tax': quebec_tax,
         'net_pay': net,
+        'employer_qpp': employer_qpp,
+        'employer_ei': employer_ei,
+        'employer_qpip': employer_qpip,
+        'employer_fss': employer_fss,
     }
 
 # ==================== AUTHENTICATION ====================
@@ -595,7 +614,7 @@ def calculate_payroll():
         )
 
         cur.execute(
-            'SELECT id, first_name, last_name, pay_rate FROM employees WHERE company_id = %s AND active = true',
+            'SELECT id, first_name, last_name, pay_rate, code FROM employees WHERE company_id = %s AND active = true',
             (company_id,)
         )
         employees = cur.fetchall()
@@ -663,6 +682,7 @@ def calculate_payroll():
 
             results.append({
                 'employee_name': emp_name,
+                'employee_code': emp[4] if len(emp) > 4 else '',
                 'gross_pay': gross_pay,
                 'qpp': d['qpp'],
                 'qpip': d['qpip'],
@@ -670,6 +690,10 @@ def calculate_payroll():
                 'federal_tax': d['federal_tax'],
                 'quebec_tax': d['quebec_tax'],
                 'net_pay': net_pay,
+                'employer_qpp': d['employer_qpp'],
+                'employer_ei': d['employer_ei'],
+                'employer_qpip': d['employer_qpip'],
+                'employer_fss': d['employer_fss'],
                 'ytd_gross': ytd_gross,
                 'ytd_net': ytd_net
             })
@@ -678,20 +702,49 @@ def calculate_payroll():
         cur.close()
         conn.close()
 
+        def s(field):
+            return round(sum(r[field] for r in results), 2)
+
         totals = {
             'employees_paid': sum(1 for r in results if r['gross_pay'] > 0),
-            'gross_total': round(sum(r['gross_pay'] for r in results), 2),
-            'net_total': round(sum(r['net_pay'] for r in results), 2),
-            'qpp_total': round(sum(r['qpp'] for r in results), 2),
-            'qpip_total': round(sum(r['qpip'] for r in results), 2),
-            'ei_total': round(sum(r['ei'] for r in results), 2),
+            'gross_total': s('gross_pay'),
+            'net_total': s('net_pay'),
+            'qpp_total': s('qpp'),
+            'qpip_total': s('qpip'),
+            'ei_total': s('ei'),
             'tax_total': round(sum(r['federal_tax'] + r['quebec_tax'] for r in results), 2)
+        }
+
+        # Remittance summary: what the employer owes each government for this run.
+        # CRA gets federal income tax + EI (employee + employer).
+        # Revenu Quebec gets Quebec tax + QPP (ee+er) + QPIP (ee+er) + FSS.
+        emp_qpp, emp_ei, emp_qpip, emp_fss = s('employer_qpp'), s('employer_ei'), s('employer_qpip'), s('employer_fss')
+        fed_tax_total = round(sum(r['federal_tax'] for r in results), 2)
+        qc_tax_total = round(sum(r['quebec_tax'] for r in results), 2)
+
+        remittance = {
+            'cra': {
+                'federal_income_tax': fed_tax_total,
+                'ei_employee': totals['ei_total'],
+                'ei_employer': emp_ei,
+                'total': round(fed_tax_total + totals['ei_total'] + emp_ei, 2),
+            },
+            'revenu_quebec': {
+                'quebec_income_tax': qc_tax_total,
+                'qpp_employee': totals['qpp_total'],
+                'qpp_employer': emp_qpp,
+                'qpip_employee': totals['qpip_total'],
+                'qpip_employer': emp_qpip,
+                'fss_employer': emp_fss,
+                'total': round(qc_tax_total + totals['qpp_total'] + emp_qpp + totals['qpip_total'] + emp_qpip + emp_fss, 2),
+            },
         }
 
         return jsonify({
             'success': True,
             'payroll': results,
             'totals': totals,
+            'remittance': remittance,
             'payNumber': pay_number
         }), 200
 
