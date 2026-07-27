@@ -244,6 +244,21 @@
           </tbody>
         </table>
       </div>
+
+      <div class="card">
+        <h2>Year-End Slips (T4 / RL-1)</h2>
+        <div class="form-row" style="align-items: flex-end;">
+          <div class="form-group" style="max-width: 200px;">
+            <label for="yearEndYear">Tax Year</label>
+            <input type="number" id="yearEndYear" value="2026" min="2020" max="2100">
+          </div>
+          <div class="form-group">
+            <button class="btn" onclick="loadYearEnd()">Generate Slips</button>
+          </div>
+        </div>
+        <div id="yearEndMsg" class="message" style="display:none;"></div>
+        <div id="yearEndContainer"><p style="color:#64748b;">Choose a year and click Generate.</p></div>
+      </div>
     </div>
   </div>
 
@@ -524,7 +539,7 @@
               <div>QPP — employer: ${money(r.revenu_quebec.qpp_employer)}</div>
               <div>QPIP — employee: ${money(r.revenu_quebec.qpip_employee)}</div>
               <div>QPIP — employer: ${money(r.revenu_quebec.qpip_employer)}</div>
-              <div>Health Services Fund (FSS): ${money(r.revenu_quebec.fss_employer)}</div>
+              <div>Health Services Fund (FSS${r.revenu_quebec.fss_rate ? ' @ ' + r.revenu_quebec.fss_rate + '%' : ''}): ${money(r.revenu_quebec.fss_employer)}</div>
               <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">Total to Revenu Québec: ${money(r.revenu_quebec.total)}</div>
             </div>
           </div>`;
@@ -616,6 +631,104 @@
         .catch(e => {
           document.getElementById('reportTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #dc2626;">Error loading reports</td></tr>';
         });
+    }
+
+    function loadYearEnd() {
+      const year = document.getElementById('yearEndYear').value;
+      const container = document.getElementById('yearEndContainer');
+      container.innerHTML = '<p style="color:#64748b;">Generating…</p>';
+
+      fetch(`/api/year-end?companyId=${company.id}&year=${year}`)
+        .then(r => r.json())
+        .then(data => {
+          window._slips = data.slips || [];
+          if (!window._slips.length) {
+            container.innerHTML = `<p style="color:#64748b;">No payroll found for ${year}. Run a payroll in that year first.</p>`;
+            return;
+          }
+          let html = `<div style="overflow-x:auto;"><table style="font-size:14px;"><thead><tr>
+            <th>Employee</th><th>Code</th><th>Gross</th><th>QPP</th><th>QPIP</th><th>EI</th><th>Federal Tax</th><th>Quebec Tax</th><th>Slips</th>
+            </tr></thead><tbody>`;
+          window._slips.forEach((s, i) => {
+            html += `<tr>
+              <td>${s.first_name} ${s.last_name}</td>
+              <td>${s.code || ''}</td>
+              <td>${money(s.gross)}</td>
+              <td>${money(s.qpp)}</td>
+              <td>${money(s.qpip)}</td>
+              <td>${money(s.ei)}</td>
+              <td>${money(s.federal_tax)}</td>
+              <td>${money(s.quebec_tax)}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn" style="padding:6px 10px;font-size:12px;" onclick="printT4(${i})">🖨 T4</button>
+                <button class="btn" style="padding:6px 10px;font-size:12px;margin-left:4px;" onclick="printRL1(${i})">🖨 RL-1</button>
+              </td>
+            </tr>`;
+          });
+          html += `</tbody></table></div>
+            <p style="margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;font-size:13px;">
+            ⚠️ <strong>Estimate — not an official slip.</strong> These box amounts are for your accountant to review and transfer onto the official CRA T4 and Revenu Québec RL-1 forms for filing.</p>`;
+          container.innerHTML = html;
+        })
+        .catch(e => { container.innerHTML = '<p style="color:#dc2626;">Error generating slips.</p>'; });
+    }
+
+    function slipWindow(title, companyName, employeeName, code, year, rows) {
+      const w = window.open('', '_blank', 'width=720,height=860');
+      let body = rows.map(r => `<tr><td>${r[0]}</td><td class="r">${r[1]}</td></tr>`).join('');
+      w.document.write(`<!DOCTYPE html><html><head><title>${title} - ${employeeName}</title>
+        <style>
+          body{font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;padding:32px;max-width:660px;margin:0 auto;}
+          h1{color:#1e40af;font-size:20px;margin-bottom:2px;} .sub{color:#64748b;margin-bottom:6px;}
+          .hdr{font-weight:bold;font-size:16px;margin:14px 0 6px;color:#1e40af;}
+          table{width:100%;border-collapse:collapse;} td{padding:7px 4px;border-bottom:1px solid #e5e7eb;}
+          .r{text-align:right;font-variant-numeric:tabular-nums;}
+          .note{margin-top:22px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px;border-radius:6px;}
+          @media print{button{display:none;}}
+        </style></head><body>
+        <h1>${companyName || 'APEX PAY'}</h1>
+        <div class="sub">${title} — Tax Year ${year}</div>
+        <div class="sub">Employee: <strong>${employeeName}</strong>${code ? ' ('+code+')' : ''}</div>
+        <table>${body}</table>
+        <div class="note">Estimate generated by APEX PAY. Transfer these amounts onto the official ${title} form; confirm with your accountant before filing.</div>
+        <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>
+        </body></html>`);
+      w.document.close();
+    }
+
+    function printT4(i) {
+      const s = (window._slips || [])[i]; if (!s) return;
+      const cName = (JSON.parse(localStorage.getItem('company')||'{}')).company_name;
+      const y = document.getElementById('yearEndYear').value;
+      const t = s.t4;
+      slipWindow('T4', cName, `${s.first_name} ${s.last_name}`, s.code, y, [
+        ['Box 10 — Province of employment', t.box10],
+        ['Box 14 — Employment income', money(t.box14)],
+        ['Box 16 — CPP contributions', money(t.box16)],
+        ['Box 17 — QPP contributions', money(t.box17)],
+        ['Box 18 — EI premiums', money(t.box18)],
+        ['Box 22 — Income tax deducted', money(t.box22)],
+        ['Box 24 — EI insurable earnings', money(t.box24)],
+        ['Box 26 — QPP pensionable earnings', money(t.box26)],
+        ['Box 55 — QPIP premiums', money(t.box55)],
+        ['Box 56 — QPIP insurable earnings', money(t.box56)],
+      ]);
+    }
+
+    function printRL1(i) {
+      const s = (window._slips || [])[i]; if (!s) return;
+      const cName = (JSON.parse(localStorage.getItem('company')||'{}')).company_name;
+      const y = document.getElementById('yearEndYear').value;
+      const b = s.rl1;
+      slipWindow('RL-1', cName, `${s.first_name} ${s.last_name}`, s.code, y, [
+        ['Box A — Employment income', money(b.boxA)],
+        ['Box B — QPP contribution', money(b.boxB)],
+        ['Box C — EI premium', money(b.boxC)],
+        ['Box E — Quebec income tax withheld', money(b.boxE)],
+        ['Box G — QPP pensionable salary', money(b.boxG)],
+        ['Box H — QPIP premium', money(b.boxH)],
+        ['Box I — QPIP eligible wages', money(b.boxI)],
+      ]);
     }
 
     function showMessage(elementId, msg, type) {
