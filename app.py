@@ -43,7 +43,15 @@ TAX_YEARS = {
             'qpp2_rate': 0.04,              # second additional (deducted from income)
         },
         'ei_employer_multiple': 1.4,        # employer EI = 1.4x employee
-        'fss_rate': 0.0,                    # employer Health Services Fund - SET per company (Revenu Quebec assigns 1.25%-4.26%)
+        'fss': {                            # employer Health Services Fund (auto by industry + payroll)
+            'threshold_low': 1000000.0,     # <= this total payroll -> flat low rate
+            'threshold_high': 7800000.0,    # >= this -> max rate
+            'rate_low_other': 0.0165,       # <=$1M, general sectors
+            'rate_low_primary_mfg': 0.0125, # <=$1M, primary/manufacturing sectors
+            'rate_high': 0.0426,            # >=$7.8M
+            # industries (from company setup) that qualify for the reduced rate
+            'primary_mfg_industries': ['manufacturing', 'primary', 'agriculture', 'forestry', 'mining', 'fishing'],
+        },
         'qpip': {
             'max_insurable': 103000.0,
             'employee_rate': 0.00430,
@@ -167,6 +175,22 @@ def calculate_quebec_deductions(gross_pay, periods_per_year, year=DEFAULT_TAX_YE
         'employer_qpip': employer_qpip,
         'employer_fss': employer_fss,
     }
+
+def fss_rate(industry, total_annual_payroll, year=DEFAULT_TAX_YEAR):
+    """Employer Health Services Fund rate, chosen by industry + total payroll."""
+    cfg = TAX_YEARS.get(int(year), TAX_YEARS[DEFAULT_TAX_YEAR]).get('fss')
+    if not cfg:
+        return 0.0
+    low = cfg['rate_low_primary_mfg'] if (industry or '').lower() in cfg['primary_mfg_industries'] else cfg['rate_low_other']
+    tp = total_annual_payroll or 0
+    if tp <= cfg['threshold_low']:
+        return low
+    if tp >= cfg['threshold_high']:
+        return cfg['rate_high']
+    # Linear slide between the low rate (at $1M) and the max rate (at $7.8M).
+    span = cfg['threshold_high'] - cfg['threshold_low']
+    frac = (tp - cfg['threshold_low']) / span
+    return round(low + (cfg['rate_high'] - low) * frac, 6)
 
 # ==================== AUTHENTICATION ====================
 
@@ -598,6 +622,11 @@ def calculate_payroll():
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # Company industry drives the FSS (Health Services Fund) rate.
+        cur.execute('SELECT industry FROM companies WHERE id = %s', (company_id,))
+        crow = cur.fetchone()
+        company_industry = crow[0] if crow else ''
+
         # Create a new pay period (next number for this year).
         cur.execute(
             'SELECT COALESCE(MAX(pay_number), 0) + 1 FROM pay_periods WHERE company_id = %s AND payroll_year = %s',
@@ -718,9 +747,14 @@ def calculate_payroll():
         # Remittance summary: what the employer owes each government for this run.
         # CRA gets federal income tax + EI (employee + employer).
         # Revenu Quebec gets Quebec tax + QPP (ee+er) + QPIP (ee+er) + FSS.
-        emp_qpp, emp_ei, emp_qpip, emp_fss = s('employer_qpp'), s('employer_ei'), s('employer_qpip'), s('employer_fss')
+        emp_qpp, emp_ei, emp_qpip = s('employer_qpp'), s('employer_ei'), s('employer_qpip')
         fed_tax_total = round(sum(r['federal_tax'] for r in results), 2)
         qc_tax_total = round(sum(r['quebec_tax'] for r in results), 2)
+
+        # FSS is on the employer's TOTAL payroll; rate is chosen by industry + payroll size.
+        est_annual_payroll = totals['gross_total'] * periods_per_year
+        applied_fss_rate = fss_rate(company_industry, est_annual_payroll, payroll_year)
+        emp_fss = round(totals['gross_total'] * applied_fss_rate, 2)
 
         remittance = {
             'cra': {
@@ -736,6 +770,7 @@ def calculate_payroll():
                 'qpip_employee': totals['qpip_total'],
                 'qpip_employer': emp_qpip,
                 'fss_employer': emp_fss,
+                'fss_rate': round(applied_fss_rate * 100, 4),
                 'total': round(qc_tax_total + totals['qpp_total'] + emp_qpp + totals['qpip_total'] + emp_qpip + emp_fss, 2),
             },
         }
@@ -747,6 +782,97 @@ def calculate_payroll():
             'remittance': remittance,
             'payNumber': pay_number
         }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ==================== YEAR-END SLIPS (T4 / RL-1) ====================
+
+@app.route('/api/year-end', methods=['GET'])
+def year_end():
+    try:
+        company_id = request.args.get('companyId')
+        year = request.args.get('year')
+
+        if not company_id or not year:
+            return jsonify({'error': 'Company ID and year are required'}), 400
+
+        year = int(year)
+        cfg = TAX_YEARS.get(year, TAX_YEARS[DEFAULT_TAX_YEAR])
+        ympe = cfg['qpp']['max_pensionable']
+        ei_max = cfg['ei']['max_insurable']
+        qpip_max = cfg['qpip']['max_insurable']
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            '''SELECT e.first_name, e.last_name, e.code,
+                      COALESCE(SUM(pr.gross_pay), 0),
+                      COALESCE(SUM(pr.cpp_contribution), 0),
+                      COALESCE(SUM(pr.qpip_contribution), 0),
+                      COALESCE(SUM(pr.ei_contribution), 0),
+                      COALESCE(SUM(pr.federal_tax), 0),
+                      COALESCE(SUM(pr.provincial_tax), 0)
+               FROM employees e
+               JOIN payroll_runs pr ON pr.employee_id = e.id
+               JOIN pay_periods pp ON pp.id = pr.period_id
+               WHERE e.company_id = %s AND pp.payroll_year = %s
+               GROUP BY e.id, e.first_name, e.last_name, e.code
+               ORDER BY e.last_name, e.first_name''',
+            (company_id, year)
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        slips = []
+        for r in rows:
+            gross = float(r[3])
+            qpp = float(r[4])
+            qpip = float(r[5])
+            ei = float(r[6])
+            fed_tax = float(r[7])
+            qc_tax = float(r[8])
+            pensionable = round(min(gross, ympe), 2)
+            ei_insurable = round(min(gross, ei_max), 2)
+            qpip_insurable = round(min(gross, qpip_max), 2)
+
+            slips.append({
+                'first_name': r[0],
+                'last_name': r[1],
+                'code': r[2],
+                'gross': round(gross, 2),
+                'qpp': round(qpp, 2),
+                'qpip': round(qpip, 2),
+                'ei': round(ei, 2),
+                'federal_tax': round(fed_tax, 2),
+                'quebec_tax': round(qc_tax, 2),
+                # T4 (federal) boxes
+                't4': {
+                    'box10': 'QC',
+                    'box14': round(gross, 2),        # Employment income
+                    'box16': 0,                       # CPP (blank in Quebec)
+                    'box17': round(qpp, 2),          # QPP contributions
+                    'box18': round(ei, 2),           # EI premiums
+                    'box22': round(fed_tax, 2),      # Income tax deducted (federal)
+                    'box24': ei_insurable,            # EI insurable earnings
+                    'box26': pensionable,             # CPP/QPP pensionable earnings
+                    'box55': round(qpip, 2),         # PPIP (QPIP) premiums
+                    'box56': qpip_insurable,          # PPIP insurable earnings
+                },
+                # RL-1 (Quebec) boxes
+                'rl1': {
+                    'boxA': round(gross, 2),         # Employment income
+                    'boxB': round(qpp, 2),           # QPP contribution
+                    'boxC': round(ei, 2),            # EI premium
+                    'boxE': round(qc_tax, 2),        # Quebec income tax withheld
+                    'boxG': pensionable,              # QPP pensionable salary
+                    'boxH': round(qpip, 2),          # QPIP premium
+                    'boxI': qpip_insurable,           # QPIP eligible wages
+                },
+            })
+
+        return jsonify({'year': year, 'slips': slips}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
