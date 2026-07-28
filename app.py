@@ -8,6 +8,8 @@ import hashlib
 import uuid
 from datetime import datetime, timedelta
 import json
+from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import URLSafeTimedSerializer
 
 load_dotenv()
 
@@ -19,6 +21,42 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
+
+# ==================== AUTH HELPERS ====================
+# SECRET_KEY signs the login tokens. Set a strong value in Render's env vars;
+# the fallback only keeps local dev working.
+SECRET_KEY = os.getenv('SECRET_KEY') or 'change-me-set-SECRET_KEY-in-render'
+_token_signer = URLSafeTimedSerializer(SECRET_KEY, salt='apexpay-auth')
+TOKEN_MAX_AGE = 7 * 24 * 3600  # tokens valid for 7 days
+
+def make_token(user_id):
+    return _token_signer.dumps({'uid': user_id})
+
+def get_auth_user_id():
+    """Return the user id from a valid Bearer token, or None."""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return None
+    try:
+        return _token_signer.loads(auth[7:], max_age=TOKEN_MAX_AGE).get('uid')
+    except Exception:
+        return None
+
+def verify_password(stored_hash, password):
+    """Check a password. Also accepts legacy unsalted SHA-256 so old accounts still work."""
+    if stored_hash and len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash.lower()):
+        return hashlib.sha256(password.encode()).hexdigest() == stored_hash
+    try:
+        return check_password_hash(stored_hash, password)
+    except Exception:
+        return False
+
+def is_legacy_hash(stored_hash):
+    return bool(stored_hash) and len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash.lower())
+
+def owns_company(cur, user_id, company_id):
+    cur.execute('SELECT 1 FROM companies WHERE id = %s AND user_id = %s', (company_id, user_id))
+    return cur.fetchone() is not None
 
 # ==================== TAX TABLES (year-keyed) ====================
 # To update for a new year: copy the latest block, change the ~15 numbers to
@@ -205,7 +243,7 @@ def signup():
         if not name or not email or not password or len(password) < 6:
             return jsonify({'error': 'Invalid input'}), 400
 
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        password_hash = generate_password_hash(password)
         user_id = str(uuid.uuid4())
 
         conn = get_db_connection()
@@ -228,6 +266,7 @@ def signup():
 
         return jsonify({
             'success': True,
+            'token': make_token(user_id),
             'user': {'id': user_id, 'name': name, 'email': email}
         }), 201
 
@@ -244,15 +283,26 @@ def signin():
         if not email or not password:
             return jsonify({'error': 'Email and password required'}), 400
 
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            'SELECT id, name, email FROM users WHERE email = %s AND password_hash = %s',
-            (email, password_hash)
+            'SELECT id, name, email, password_hash FROM users WHERE email = %s',
+            (email,)
         )
-        user = cur.fetchone()
+        row = cur.fetchone()
+
+        if not row or not verify_password(row[3], password):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Invalid email or password'}), 401
+
+        # Transparently upgrade old SHA-256 hashes to the salted format.
+        if is_legacy_hash(row[3]):
+            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s',
+                        (generate_password_hash(password), row[0]))
+            conn.commit()
+
+        user = (row[0], row[1], row[2])
 
         company = None
         if user:
@@ -275,13 +325,8 @@ def signin():
         cur.close()
         conn.close()
 
-        if not user:
-            return jsonify({'error': 'Invalid email or password'}), 401
-
-        token = f"token_{datetime.now().timestamp()}"
-
         return jsonify({
-            'token': token,
+            'token': make_token(user[0]),
             'user': {'id': user[0], 'name': user[1], 'email': user[2]},
             'company': company
         }), 200
@@ -294,14 +339,17 @@ def signin():
 @app.route('/api/setup', methods=['POST'])
 def setup():
     try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         data = request.json
-        user_id = data.get('userId')
         company_name = data.get('companyName', '').strip()
         company_type = data.get('companyType', 'single')
         company_address = data.get('companyAddress', '').strip()
         industry = data.get('industry', '')
 
-        if not user_id or not company_name:
+        if not company_name:
             return jsonify({'error': 'Missing required fields'}), 400
 
         conn = get_db_connection()
@@ -367,6 +415,10 @@ def setup():
 @app.route('/api/update-company', methods=['PUT'])
 def update_company():
     try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         data = request.json
         company_id = data.get('companyId')
         company_name = data.get('companyName', '').strip()
@@ -379,6 +431,11 @@ def update_company():
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
 
         try:
             cur.execute(
@@ -425,6 +482,10 @@ def update_company():
 @app.route('/api/payroll-employees', methods=['GET'])
 def get_employees():
     try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         company_id = request.args.get('companyId')
 
         if not company_id:
@@ -432,6 +493,11 @@ def get_employees():
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
         # Pull each employee plus their year-to-date totals (for the Reports tab).
         cur.execute(
             '''SELECT e.id, e.first_name, e.last_name, e.code, e.email, e.active, e.hire_date, e.pay_rate,
@@ -498,6 +564,10 @@ def _fetch_employee(cur, employee_id):
 @app.route('/api/payroll-employees', methods=['POST'])
 def create_employee():
     try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         data = request.json
         company_id = data.get('companyId')
         first_name = data.get('firstName', '').strip()
@@ -514,6 +584,11 @@ def create_employee():
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
 
         try:
             cur.execute(
@@ -540,6 +615,10 @@ def create_employee():
 @app.route('/api/payroll-employees', methods=['PUT'])
 def update_employee():
     try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         data = request.json
         employee_id = data.get('employeeId') or data.get('id')
 
@@ -548,6 +627,17 @@ def update_employee():
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Verify the employee belongs to a company this user owns.
+        cur.execute(
+            '''SELECT 1 FROM employees e JOIN companies c ON c.id = e.company_id
+               WHERE e.id = %s AND c.user_id = %s''',
+            (employee_id, user_id)
+        )
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
 
         existing = _fetch_employee(cur, employee_id)
         if not existing:
@@ -617,10 +707,19 @@ def calculate_payroll():
         if not company_id or not pay_end_date or not payment_date:
             return jsonify({'error': 'Company, pay end date and payment date are required'}), 400
 
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         payroll_year = int(str(pay_end_date)[:4])
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
 
         # Company industry drives the FSS (Health Services Fund) rate.
         cur.execute('SELECT industry FROM companies WHERE id = %s', (company_id,))
@@ -791,6 +890,10 @@ def calculate_payroll():
 @app.route('/api/year-end', methods=['GET'])
 def year_end():
     try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
         company_id = request.args.get('companyId')
         year = request.args.get('year')
 
@@ -805,6 +908,11 @@ def year_end():
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
         cur.execute(
             '''SELECT e.first_name, e.last_name, e.code,
                       COALESCE(SUM(pr.gross_pay), 0),
