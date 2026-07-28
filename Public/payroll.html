@@ -279,6 +279,21 @@
     let employees = [];
     let hoursData = {};
 
+    // Attach the login token to every API call; bounce to sign-in if it's rejected.
+    async function authFetch(url, options = {}) {
+      options.headers = Object.assign(
+        { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '') },
+        options.headers || {}
+      );
+      const res = await fetch(url, options);
+      if (res.status === 401) {
+        localStorage.clear();
+        window.location.href = '/signin';
+        throw new Error('Session expired');
+      }
+      return res;
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       if (!user.id || !company.id) {
         window.location.href = '/dashboard.html';
@@ -310,7 +325,7 @@
       `;
       document.getElementById('companyInfo').innerHTML = companyHTML;
       
-      fetch(`/api/payroll-employees?companyId=${company.id}`)
+      authFetch(`/api/payroll-employees?companyId=${company.id}`)
         .then(r => r.json())
         .then(data => {
           const emps = data.employees || [];
@@ -322,7 +337,7 @@
     }
 
     function loadEmployees() {
-      fetch(`/api/payroll-employees?companyId=${company.id}`)
+      authFetch(`/api/payroll-employees?companyId=${company.id}`)
         .then(r => r.json())
         .then(data => {
           employees = data.employees || [];
@@ -372,7 +387,7 @@
         payRate: parseFloat(document.getElementById('payRate').value) || 0
       };
 
-      fetch('/api/payroll-employees', {
+      authFetch('/api/payroll-employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -394,7 +409,7 @@
       const emp = employees.find(e => e.id === empId);
       if (!emp) return;
 
-      fetch('/api/payroll-employees', {
+      authFetch('/api/payroll-employees', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -478,7 +493,7 @@
         payFrequency: document.getElementById('payFrequency').selectedOptions[0].text
       };
 
-      fetch('/api/payroll-calculate', {
+      authFetch('/api/payroll-calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -604,7 +619,7 @@
     }
 
     function loadReports() {
-      fetch(`/api/payroll-employees?companyId=${company.id}`)
+      authFetch(`/api/payroll-employees?companyId=${company.id}`)
         .then(r => r.json())
         .then(data => {
           const tbody = document.getElementById('reportTable');
@@ -638,7 +653,7 @@
       const container = document.getElementById('yearEndContainer');
       container.innerHTML = '<p style="color:#64748b;">Generating…</p>';
 
-      fetch(`/api/year-end?companyId=${company.id}&year=${year}`)
+      authFetch(`/api/year-end?companyId=${company.id}&year=${year}`)
         .then(r => r.json())
         .then(data => {
           window._slips = data.slips || [];
