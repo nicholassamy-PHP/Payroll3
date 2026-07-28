@@ -97,7 +97,7 @@
           successMsg.textContent = '✓ Account created successfully! Redirecting...';
           successMsg.style.display = 'block';
 
-          localStorage.setItem('authToken', 'token_' + Date.now());
+          localStorage.setItem('authToken', data.token || '');
           localStorage.setItem('user', JSON.stringify(data.user));
 
           setTimeout(() => {
