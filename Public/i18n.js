@@ -64,7 +64,35 @@
       complete_setup: "Terminer et aller au tableau de bord",
       setting_up: "Configuration...",
       setup_failed: "Échec de la configuration",
-      generic_error: "Erreur"
+      generic_error: "Erreur",
+      dashboard_title: "Tableau de bord ApexPayGo",
+      trial_active_title: "🎉 Essai gratuit actif",
+      trial_days_remaining: "Il vous reste {days} jour(s)",
+      trial_expired_title: "⚠️ Essai expiré",
+      trial_expired_text: "Votre essai gratuit est terminé. Veuillez mettre à niveau pour continuer à utiliser ApexPayGo.",
+      upgrade_now: "Mettre à niveau — à partir de 20$/mois",
+      status_active: "Actif",
+      status_trial_expired: "Essai expiré — Mise à niveau requise",
+      company_info: "Renseignements sur l'entreprise",
+      account_info: "Renseignements du compte",
+      payroll_system: "Système de paie",
+      label_company_name: "Nom de l'entreprise :",
+      label_company_type: "Type d'entreprise :",
+      label_address: "Adresse :",
+      label_industry: "Secteur :",
+      label_name: "Nom :",
+      label_email: "Courriel :",
+      label_status: "Statut :",
+      label_payroll_processing: "Traitement de la paie :",
+      payroll_ready: "Prêt",
+      edit_company_info: "Modifier les infos de l'entreprise",
+      open_payroll_system: "Ouvrir le système de paie",
+      edit_company_title: "Modifier les renseignements de l'entreprise",
+      company_address_label: "Adresse de l'entreprise",
+      cancel: "Annuler",
+      save_changes: "Enregistrer",
+      update_success: "Renseignements de l'entreprise mis à jour avec succès!",
+      update_failed: "Échec de la mise à jour"
     },
     en: {
       brand_tagline: "Payroll System",
@@ -117,12 +145,45 @@
       complete_setup: "Complete Setup & Go to Dashboard",
       setting_up: "Setting up...",
       setup_failed: "Setup failed",
-      generic_error: "Error"
+      generic_error: "Error",
+      dashboard_title: "ApexPayGo Dashboard",
+      trial_active_title: "🎉 7-Day Free Trial Active",
+      trial_days_remaining: "You have {days} day(s) remaining",
+      trial_expired_title: "⚠️ Trial Expired",
+      trial_expired_text: "Your free trial has ended. Please upgrade to continue using ApexPayGo.",
+      upgrade_now: "Upgrade Now — starting at $20/month",
+      status_active: "Active",
+      status_trial_expired: "Trial Expired - Upgrade Required",
+      company_info: "Company Information",
+      account_info: "Account Information",
+      payroll_system: "Payroll System",
+      label_company_name: "Company Name:",
+      label_company_type: "Company Type:",
+      label_address: "Address:",
+      label_industry: "Industry:",
+      label_name: "Name:",
+      label_email: "Email:",
+      label_status: "Status:",
+      label_payroll_processing: "Payroll Processing:",
+      payroll_ready: "Ready",
+      edit_company_info: "Edit Company Info",
+      open_payroll_system: "Open Payroll System",
+      edit_company_title: "Edit Company Information",
+      company_address_label: "Company Address",
+      cancel: "Cancel",
+      save_changes: "Save Changes",
+      update_success: "Company information updated successfully!",
+      update_failed: "Update failed"
     }
   };
 
   function getLang() { return localStorage.getItem('lang') || 'fr'; }
-  function t(key) { const l = getLang(); return (T[l] && T[l][key]) || (T.en && T.en[key]) || key; }
+  function t(key, vars) {
+    const l = getLang();
+    let s = (T[l] && T[l][key]) || (T.en && T.en[key]) || key;
+    if (vars) { Object.keys(vars).forEach(function (k) { s = s.replace('{' + k + '}', vars[k]); }); }
+    return s;
+  }
 
   function apply(root) {
     root = root || document;
@@ -148,11 +209,28 @@
     var style = document.createElement('style');
     style.textContent =
       '.lang-switch{position:fixed;top:12px;right:14px;display:flex;gap:4px;z-index:3000}' +
+      '.lang-switch.lang-switch-inline{position:static;top:auto;right:auto;z-index:auto}' +
       '.lang-switch button{padding:4px 10px;border:1px solid rgba(120,120,140,.4);background:rgba(255,255,255,.85);color:#1e40af;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;line-height:1}' +
-      '.lang-switch button.active{background:#1e40af;color:#fff;border-color:#1e40af}';
+      '.lang-switch button.active{background:#1e40af;color:#fff;border-color:#1e40af}' +
+      '.navbar .lang-switch button{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}' +
+      '.navbar .lang-switch button.active{background:#fff;color:#1e40af;border-color:#fff}';
     document.head.appendChild(style);
     document.querySelectorAll('#langSwitch').forEach(function (el) {
-      el.className = 'lang-switch';
+      // If this page has a navbar, group the switch together with the last
+      // navbar button (Logout) so the navbar keeps 2 flex children (title +
+      // right-side group) instead of floating fixed over the corner.
+      var navbar = document.querySelector('.navbar');
+      if (navbar && !navbar.contains(el)) {
+        var lastBtn = navbar.lastElementChild;
+        var wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.alignItems = 'center';
+        wrap.style.gap = '10px';
+        navbar.insertBefore(wrap, lastBtn);
+        wrap.appendChild(el);
+        wrap.appendChild(lastBtn);
+      }
+      el.className = navbar ? 'lang-switch lang-switch-inline' : 'lang-switch';
       el.innerHTML = switcherHTML();
     });
     apply();
