@@ -87,7 +87,10 @@
   <div id="langSwitch"></div>
   <div class="navbar">
     <h1>💰 ApexPayGo</h1>
-    <button onclick="logout()" data-i18n="logout">Logout</button>
+    <div style="display:flex;gap:10px;">
+      <button onclick="window.location.href='/dashboard'" data-i18n="back_to_account">Account Dashboard</button>
+      <button onclick="logout()" data-i18n="logout">Logout</button>
+    </div>
   </div>
 
   <div class="container">
