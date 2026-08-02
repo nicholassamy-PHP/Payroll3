@@ -1089,7 +1089,7 @@ def assistant():
             return jsonify({'error': 'Not authenticated'}), 401
 
         if not os.getenv('ANTHROPIC_API_KEY'):
-            return jsonify({'reply': "Samy n'est pas encore configuré. / Samy is not configured yet."}), 200
+            return jsonify({'reply': "NICO n'est pas encore configuré. / NICO is not configured yet."}), 200
 
         data = request.json or {}
         lang = 'en' if data.get('lang') == 'en' else 'fr'
