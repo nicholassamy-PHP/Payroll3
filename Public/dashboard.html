@@ -55,7 +55,7 @@
 
   <div class="container">
     <div id="trialBanner" class="trial-banner">
-      <h2 id="trialTitle" data-i18n="trial_active_title">🎉 7-Day Free Trial Active</h2>
+      <h2 id="trialTitle"></h2>
       <p id="trialText"></p>
       <button id="upgradeBtn" style="display: none;" onclick="goToCheckout()" data-i18n="upgrade_now">Upgrade Now</button>
     </div>
@@ -94,7 +94,7 @@
         </div>
         <div class="card-info">
           <label data-i18n="label_status">Status:</label>
-          <span id="accountStatus" data-i18n="status_active">Active</span>
+          <span id="accountStatus"></span>
         </div>
       </div>
 
@@ -166,25 +166,55 @@
 
     function updateTrialStatus() {
       const company = JSON.parse(localStorage.getItem('company') || '{}');
-      const daysLeft = calculateTrialDaysRemaining(company.trial_start_date);
-
       const trialBanner = document.getElementById('trialBanner');
       const trialTitle = document.getElementById('trialTitle');
       const trialText = document.getElementById('trialText');
       const upgradeBtn = document.getElementById('upgradeBtn');
+      const accountStatus = document.getElementById('accountStatus');
+
+      // A paid subscription always wins, regardless of the 7-day trial clock.
+      if (company.subscription_status === 'active') {
+        trialBanner.classList.remove('expired');
+        trialTitle.textContent = i18n.t('py_subscribed_title');
+        trialText.textContent = i18n.t('py_subscribed_text');
+        upgradeBtn.style.display = 'none';
+        accountStatus.textContent = i18n.t('status_subscribed');
+        return;
+      }
+
+      const daysLeft = calculateTrialDaysRemaining(company.trial_start_date);
 
       if (daysLeft <= 0) {
         trialBanner.classList.add('expired');
         trialTitle.textContent = i18n.t('trial_expired_title');
         trialText.textContent = i18n.t('trial_expired_text');
         upgradeBtn.style.display = 'block';
-        document.getElementById('accountStatus').textContent = i18n.t('status_trial_expired');
+        accountStatus.textContent = i18n.t('status_trial_expired');
       } else {
         trialBanner.classList.remove('expired');
         trialTitle.textContent = i18n.t('trial_active_title');
         trialText.textContent = i18n.t('trial_days_remaining', { days: daysLeft });
         upgradeBtn.style.display = 'block';
-        document.getElementById('accountStatus').textContent = i18n.t('status_active');
+        accountStatus.textContent = i18n.t('status_active');
+      }
+    }
+
+    // Fetch the company's live billing status from the server — localStorage
+    // is a stale cache from login/setup and never reflects a payment made
+    // just now (e.g. returning from Stripe Checkout).
+    async function refreshCompanyStatus() {
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      if (!company.id) return;
+      try {
+        const res = await fetch(`/api/company?companyId=${company.id}`, {
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '') }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.company) localStorage.setItem('company', JSON.stringify(data.company));
+        }
+      } catch (e) {
+        console.log('Could not refresh billing status:', e);
       }
     }
 
@@ -242,7 +272,15 @@
       .catch(err => alert('Error: ' + err.message));
     }
 
-    loadDashboard();
+    refreshCompanyStatus().then(async () => {
+      loadDashboard();
+      // Returning from Stripe: the webhook can land a second or two after
+      // the redirect, so retry once shortly after if we're not active yet.
+      const company = JSON.parse(localStorage.getItem('company') || '{}');
+      if (new URLSearchParams(location.search).get('billing') === 'success' && company.subscription_status !== 'active') {
+        setTimeout(() => { refreshCompanyStatus().then(loadDashboard); }, 3000);
+      }
+    });
 
     function openEditModal() {
       const company = JSON.parse(localStorage.getItem('company') || '{}');
