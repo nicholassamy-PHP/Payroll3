@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APEX PAY - Payroll System</title>
+  <title>ApexPayGo — Paie</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; min-height: 100vh; }
@@ -86,41 +86,41 @@
 <body>
   <div id="langSwitch"></div>
   <div class="navbar">
-    <h1>💰 ApexPayGo - Payroll System</h1>
-    <button onclick="logout()">Logout</button>
+    <h1>💰 ApexPayGo</h1>
+    <button onclick="logout()" data-i18n="logout">Logout</button>
   </div>
 
   <div class="container">
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
-      <button class="tab-btn" onclick="switchTab('employees')">👥 Employees</button>
-      <button class="tab-btn" onclick="switchTab('payroll')">💵 Payroll</button>
-      <button class="tab-btn" onclick="switchTab('reports')">📈 Reports</button>
+      <button class="tab-btn active" onclick="switchTab('dashboard')" data-i18n="py_tab_dashboard">📊 Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('employees')" data-i18n="py_tab_employees">👥 Employees</button>
+      <button class="tab-btn" onclick="switchTab('payroll')" data-i18n="py_tab_payroll">💵 Payroll</button>
+      <button class="tab-btn" onclick="switchTab('reports')" data-i18n="py_tab_reports">📈 Reports</button>
     </div>
 
     <!-- DASHBOARD TAB -->
     <div id="dashboard" class="tab-content active">
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">Total Employees</div>
+          <div class="stat-label" data-i18n="py_stat_total_employees">Total Employees</div>
           <div class="stat-value" id="totalEmployees">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Active Pay Periods</div>
+          <div class="stat-label" data-i18n="py_stat_active_periods">Active Pay Periods</div>
           <div class="stat-value" id="activePayPeriods">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">YTD Gross Pay</div>
+          <div class="stat-label" data-i18n="py_stat_ytd_gross">YTD Gross Pay</div>
           <div class="stat-value" id="ytdGross">$0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Current Year</div>
+          <div class="stat-label" data-i18n="py_stat_current_year">Current Year</div>
           <div class="stat-value" id="currentYear">2024</div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Company Overview</h2>
+        <h2 data-i18n="py_company_overview">Company Overview</h2>
         <div id="companyInfo"></div>
       </div>
     </div>
@@ -128,60 +128,60 @@
     <!-- EMPLOYEES TAB -->
     <div id="employees" class="tab-content">
       <div class="card">
-        <h2>Add New Employee</h2>
+        <h2 data-i18n="py_add_employee_title">Add New Employee</h2>
         <form id="employeeForm" onsubmit="addEmployee(event)">
           <div class="form-row">
             <div class="form-group">
-              <label for="firstName">First Name</label>
+              <label for="firstName" data-i18n="py_first_name">First Name</label>
               <input type="text" id="firstName" name="firstName" required>
             </div>
             <div class="form-group">
-              <label for="lastName">Last Name</label>
+              <label for="lastName" data-i18n="py_last_name">Last Name</label>
               <input type="text" id="lastName" name="lastName" required>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="employeeCode">Employee Code</label>
+              <label for="employeeCode" data-i18n="py_employee_code">Employee Code</label>
               <input type="text" id="employeeCode" name="employeeCode" placeholder="EMP001" required>
             </div>
             <div class="form-group">
-              <label for="employeeEmail">Email</label>
+              <label for="employeeEmail" data-i18n="email_label">Email</label>
               <input type="email" id="employeeEmail" name="employeeEmail" required>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label for="hireDate">Hire Date</label>
+              <label for="hireDate" data-i18n="py_hire_date">Hire Date</label>
               <input type="date" id="hireDate" name="hireDate" required>
             </div>
             <div class="form-group">
-              <label for="payRate">Pay Rate ($ / hour)</label>
+              <label for="payRate" data-i18n="py_pay_rate">Pay Rate ($ / hour)</label>
               <input type="number" step="0.01" min="0" id="payRate" name="payRate" placeholder="20.00" required>
             </div>
           </div>
-          <button type="submit" class="btn">Add Employee</button>
+          <button type="submit" class="btn" data-i18n="py_add_employee_btn">Add Employee</button>
         </form>
         <div id="employeeMsg" class="message" style="display: none;"></div>
       </div>
 
       <div class="card">
-        <h2>Employee List</h2>
+        <h2 data-i18n="py_employee_list_title">Employee List</h2>
         <div id="employeeMsg2" class="message" style="display: none;"></div>
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Email</th>
-              <th>Pay Rate</th>
-              <th>Hire Date</th>
-              <th>Status</th>
-              <th>Action</th>
+              <th data-i18n="th_name">Name</th>
+              <th data-i18n="th_code">Code</th>
+              <th data-i18n="email_label">Email</th>
+              <th data-i18n="th_pay_rate">Pay Rate</th>
+              <th data-i18n="th_hire_date">Hire Date</th>
+              <th data-i18n="th_status">Status</th>
+              <th data-i18n="th_action">Action</th>
             </tr>
           </thead>
           <tbody id="employeeTable">
-            <tr><td colspan="7" style="text-align: center; color: #64748b;">Loading employees...</td></tr>
+            <tr><td colspan="7" style="text-align: center; color: #64748b;" data-i18n="py_loading_employees">Loading employees...</td></tr>
           </tbody>
         </table>
       </div>
@@ -190,23 +190,23 @@
     <!-- PAYROLL TAB -->
     <div id="payroll" class="tab-content">
       <div class="card">
-        <h2>Payroll Period Setup</h2>
+        <h2 data-i18n="py_period_setup_title">Payroll Period Setup</h2>
         <div class="form-row">
           <div class="form-group">
-            <label for="payEndDate">Pay Period End Date</label>
+            <label for="payEndDate" data-i18n="py_pay_end_date">Pay Period End Date</label>
             <input type="date" id="payEndDate" required>
           </div>
           <div class="form-group">
-            <label for="paymentDate">Payment Date</label>
+            <label for="paymentDate" data-i18n="py_payment_date">Payment Date</label>
             <input type="date" id="paymentDate" required>
           </div>
           <div class="form-group">
-            <label for="payFrequency">Pay Frequency</label>
+            <label for="payFrequency" data-i18n="py_pay_frequency">Pay Frequency</label>
             <select id="payFrequency">
-              <option value="weekly">Weekly (52/yr)</option>
-              <option value="biweekly" selected>Bi-weekly (26/yr)</option>
-              <option value="semimonthly">Semi-monthly (24/yr)</option>
-              <option value="monthly">Monthly (12/yr)</option>
+              <option value="weekly" data-i18n="py_freq_weekly">Weekly (52/yr)</option>
+              <option value="biweekly" selected data-i18n="py_freq_biweekly">Bi-weekly (26/yr)</option>
+              <option value="semimonthly" data-i18n="py_freq_semimonthly">Semi-monthly (24/yr)</option>
+              <option value="monthly" data-i18n="py_freq_monthly">Monthly (12/yr)</option>
             </select>
           </div>
         </div>
@@ -214,51 +214,51 @@
       </div>
 
       <div class="card">
-        <h2>Hours Entry</h2>
+        <h2 data-i18n="py_hours_entry_title">Hours Entry</h2>
         <div id="hoursContainer">
-          <p style="color: #64748b;">Loading employees...</p>
+          <p style="color: #64748b;" data-i18n="py_loading_employees">Loading employees...</p>
         </div>
-        <button class="btn" style="margin-top: 20px;" onclick="calculatePayroll()">Calculate Payroll</button>
-        <button class="btn btn-secondary" style="margin-top: 20px; margin-left: 10px;" onclick="viewPayrollResults()">View Results</button>
+        <button class="btn" style="margin-top: 20px;" onclick="calculatePayroll()" data-i18n="py_calculate_payroll_btn">Calculate Payroll</button>
+        <button class="btn btn-secondary" style="margin-top: 20px; margin-left: 10px;" onclick="viewPayrollResults()" data-i18n="py_view_results_btn">View Results</button>
       </div>
     </div>
 
     <!-- REPORTS TAB -->
     <div id="reports" class="tab-content">
       <div class="card">
-        <h2>Year-to-Date Summary</h2>
+        <h2 data-i18n="py_ytd_summary_title">Year-to-Date Summary</h2>
         <table>
           <thead>
             <tr>
-              <th>Employee Name</th>
-              <th>Employee Code</th>
-              <th>YTD Gross</th>
-              <th>YTD Net</th>
-              <th>YTD QPP</th>
-              <th>YTD QPIP</th>
-              <th>YTD EI</th>
-              <th>YTD Tax</th>
+              <th data-i18n="th_employee_name">Employee Name</th>
+              <th data-i18n="th_employee_code">Employee Code</th>
+              <th data-i18n="th_ytd_gross">YTD Gross</th>
+              <th data-i18n="th_ytd_net">YTD Net</th>
+              <th data-i18n="th_ytd_qpp">YTD QPP</th>
+              <th data-i18n="th_ytd_qpip">YTD QPIP</th>
+              <th data-i18n="th_ytd_ei">YTD EI</th>
+              <th data-i18n="th_ytd_tax">YTD Tax</th>
             </tr>
           </thead>
           <tbody id="reportTable">
-            <tr><td colspan="8" style="text-align: center; color: #64748b;">Loading report data...</td></tr>
+            <tr><td colspan="8" style="text-align: center; color: #64748b;" data-i18n="py_loading_employees">Loading employees...</td></tr>
           </tbody>
         </table>
       </div>
 
       <div class="card">
-        <h2>Year-End Slips (T4 / RL-1)</h2>
+        <h2 data-i18n="py_year_end_title">Year-End Slips (T4 / RL-1)</h2>
         <div class="form-row" style="align-items: flex-end;">
           <div class="form-group" style="max-width: 200px;">
-            <label for="yearEndYear">Tax Year</label>
+            <label for="yearEndYear" data-i18n="py_tax_year">Tax Year</label>
             <input type="number" id="yearEndYear" value="2026" min="2020" max="2100">
           </div>
           <div class="form-group">
-            <button class="btn" onclick="loadYearEnd()">Generate Slips</button>
+            <button class="btn" onclick="loadYearEnd()" data-i18n="py_generate_slips_btn">Generate Slips</button>
           </div>
         </div>
         <div id="yearEndMsg" class="message" style="display:none;"></div>
-        <div id="yearEndContainer"><p style="color:#64748b;">Choose a year and click Generate.</p></div>
+        <div id="yearEndContainer"><p style="color:#64748b;" data-i18n="py_choose_year_prompt">Choose a year and click Generate.</p></div>
       </div>
     </div>
   </div>
@@ -267,13 +267,14 @@
   <div id="resultsModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Payroll Calculation Results</h2>
+        <h2 data-i18n="py_results_title">Payroll Calculation Results</h2>
         <button class="close-btn" onclick="closeResultsModal()">×</button>
       </div>
       <div id="payrollResults"></div>
     </div>
   </div>
 
+  <script src="/i18n.js"></script>
   <script>
     let company = JSON.parse(localStorage.getItem('company') || '{}');
     let user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -305,6 +306,16 @@
       loadReports();
     });
 
+    // Re-render dynamically-built content (tables, hours grid, generated
+    // slips) when the language toggle is used, without losing in-progress work.
+    document.addEventListener('langchange', () => {
+      loadDashboard();
+      renderEmployeeTable();
+      loadEmployeesForPayroll();
+      loadReports();
+      if (window._slips && window._slips.length) loadYearEnd();
+    });
+
     function switchTab(tabName) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -319,10 +330,10 @@
       document.getElementById('currentYear').textContent = new Date().getFullYear();
       
       const companyHTML = `
-        <p><strong>Company:</strong> ${company.company_name}</p>
-        <p><strong>Type:</strong> ${company.company_type}</p>
-        <p><strong>Address:</strong> ${company.company_address}</p>
-        <p><strong>Industry:</strong> ${company.industry}</p>
+        <p><strong>${i18n.t('py_ov_company')}</strong> ${company.company_name}</p>
+        <p><strong>${i18n.t('py_ov_type')}</strong> ${company.company_type}</p>
+        <p><strong>${i18n.t('py_ov_address')}</strong> ${company.company_address}</p>
+        <p><strong>${i18n.t('py_ov_industry')}</strong> ${company.industry}</p>
       `;
       document.getElementById('companyInfo').innerHTML = companyHTML;
       
@@ -345,14 +356,14 @@
           renderEmployeeTable();
         })
         .catch(e => {
-          showMessage('employeeMsg2', 'Error loading employees', 'error');
+          showMessage('employeeMsg2', i18n.t('py_error_loading_employees'), 'error');
         });
     }
 
     function renderEmployeeTable() {
       const tbody = document.getElementById('employeeTable');
       if (!employees.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b;">No employees yet. Add one above.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #64748b;">${i18n.t('py_no_employees_yet')}</td></tr>`;
         return;
       }
 
@@ -363,10 +374,10 @@
           <td>${emp.email || ''}</td>
           <td>$${(emp.pay_rate || 0).toFixed(2)}/hr</td>
           <td>${emp.hire_date || ''}</td>
-          <td>${emp.active ? '✓ Active' : 'Inactive'}</td>
+          <td>${emp.active ? i18n.t('py_active_status') : i18n.t('py_inactive_status')}</td>
           <td>
             <button class="btn" style="padding: 6px 12px; font-size: 12px;" onclick="toggleEmployee('${emp.id}')">
-              ${emp.active ? 'Deactivate' : 'Activate'}
+              ${emp.active ? i18n.t('py_deactivate_btn') : i18n.t('py_activate_btn')}
             </button>
           </td>
         </tr>
@@ -396,14 +407,14 @@
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          showMessage('employeeMsg', '✓ Employee added successfully!', 'success');
+          showMessage('employeeMsg', i18n.t('py_employee_added_success'), 'success');
           document.getElementById('employeeForm').reset();
           loadEmployees();
         } else {
-          showMessage('employeeMsg', '✗ ' + (data.error || 'Failed to add employee'), 'error');
+          showMessage('employeeMsg', '✗ ' + (data.error || i18n.t('py_employee_add_failed')), 'error');
         }
       })
-      .catch(e => showMessage('employeeMsg', '✗ Error: ' + e.message, 'error'));
+      .catch(e => showMessage('employeeMsg', '✗ ' + i18n.t('generic_error') + ': ' + e.message, 'error'));
     }
 
     function toggleEmployee(empId) {
@@ -423,33 +434,40 @@
         if (data.success) {
           loadEmployees();
         } else {
-          showMessage('employeeMsg2', '✗ ' + (data.error || 'Failed to update employee'), 'error');
+          showMessage('employeeMsg2', '✗ ' + (data.error || i18n.t('py_employee_update_failed')), 'error');
         }
       })
       .catch(e => console.log('Error updating employee:', e));
     }
 
     function loadEmployeesForPayroll() {
+      // Preserve any in-progress hours so a language switch doesn't erase them.
+      const preserved = {};
+      document.querySelectorAll('#hoursContainer input').forEach(inp => {
+        preserved[inp.dataset.emp + '|' + inp.dataset.type] = inp.value;
+      });
+
       if (employees.length === 0) {
-        document.getElementById('hoursContainer').innerHTML = '<p style="color: #64748b;">No employees. Add employees in the Employees tab first.</p>';
+        document.getElementById('hoursContainer').innerHTML = `<p style="color: #64748b;">${i18n.t('py_no_employees_add_first')}</p>`;
         return;
       }
 
       let html = '<div style="overflow-x: auto;"><table style="margin-top: 0;"><thead><tr>';
-      html += '<th>Employee</th>';
-      html += '<th>Regular</th><th>Holiday</th><th>Vacation</th><th>Maternity</th><th>SSL</th><th>Special</th><th>Other</th>';
+      html += `<th>${i18n.t('th_employee')}</th>`;
+      html += `<th>${i18n.t('th_regular')}</th><th>${i18n.t('th_holiday')}</th><th>${i18n.t('th_vacation')}</th><th>${i18n.t('th_maternity')}</th><th>${i18n.t('th_ssl')}</th><th>${i18n.t('th_special')}</th><th>${i18n.t('th_other')}</th>`;
       html += '</tr></thead><tbody>';
 
       employees.forEach(emp => {
+        const v = (type, def) => preserved[emp.id + '|' + type] !== undefined ? preserved[emp.id + '|' + type] : def;
         html += `<tr>
           <td style="font-weight: 600;">${emp.first_name} ${emp.last_name}</td>
-          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="regular_hours"></td>
-          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="holiday_paid_hours"></td>
-          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="vacation_paid_hours"></td>
-          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="maternity_hours"></td>
-          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="ssl_hours"></td>
-          <td><input type="number" step="0.5" value="0" data-emp="${emp.id}" data-type="special_hours"></td>
-          <td><input type="number" step="0.01" value="0" data-emp="${emp.id}" data-type="other_amount"></td>
+          <td><input type="number" step="0.5" value="${v('regular_hours', 0)}" data-emp="${emp.id}" data-type="regular_hours"></td>
+          <td><input type="number" step="0.5" value="${v('holiday_paid_hours', 0)}" data-emp="${emp.id}" data-type="holiday_paid_hours"></td>
+          <td><input type="number" step="0.5" value="${v('vacation_paid_hours', 0)}" data-emp="${emp.id}" data-type="vacation_paid_hours"></td>
+          <td><input type="number" step="0.5" value="${v('maternity_hours', 0)}" data-emp="${emp.id}" data-type="maternity_hours"></td>
+          <td><input type="number" step="0.5" value="${v('ssl_hours', 0)}" data-emp="${emp.id}" data-type="ssl_hours"></td>
+          <td><input type="number" step="0.5" value="${v('special_hours', 0)}" data-emp="${emp.id}" data-type="special_hours"></td>
+          <td><input type="number" step="0.01" value="${v('other_amount', 0)}" data-emp="${emp.id}" data-type="other_amount"></td>
         </tr>`;
       });
 
@@ -465,7 +483,7 @@
       const paymentDate = document.getElementById('paymentDate').value;
 
       if (!payEndDate || !paymentDate) {
-        showMessage('payrollMsg', '✗ Please fill in dates', 'error');
+        showMessage('payrollMsg', i18n.t('py_please_fill_dates'), 'error');
         return;
       }
 
@@ -502,13 +520,13 @@
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          showMessage('payrollMsg', '✓ Payroll calculated successfully!', 'success');
+          showMessage('payrollMsg', i18n.t('py_payroll_calculated_success'), 'success');
           displayPayrollResults(data);
         } else {
-          showMessage('payrollMsg', '✗ ' + (data.error || 'Calculation failed'), 'error');
+          showMessage('payrollMsg', '✗ ' + (data.error || i18n.t('py_calculation_failed')), 'error');
         }
       })
-      .catch(e => showMessage('payrollMsg', '✗ Error: ' + e.message, 'error'));
+      .catch(e => showMessage('payrollMsg', '✗ ' + i18n.t('generic_error') + ': ' + e.message, 'error'));
     }
 
     function money(v) { return '$' + parseFloat(v || 0).toFixed(2); }
@@ -518,7 +536,7 @@
       window._payrollRows = payroll;
 
       let html = '<div style="overflow-x:auto;"><table style="font-size: 14px;"><thead><tr>';
-      html += '<th>Employee</th><th>Gross</th><th>QPP</th><th>QPIP</th><th>EI</th><th>Federal Tax</th><th>Quebec Tax</th><th>Net Pay</th><th></th>';
+      html += `<th>${i18n.t('th_employee')}</th><th>${i18n.t('th_gross')}</th><th>QPP</th><th>QPIP</th><th>EI</th><th>${i18n.t('th_federal_tax')}</th><th>${i18n.t('th_quebec_tax')}</th><th>${i18n.t('th_net_pay')}</th><th></th>`;
       html += '</tr></thead><tbody>';
 
       payroll.forEach((row, i) => {
@@ -531,7 +549,7 @@
           <td>${money(row.federal_tax)}</td>
           <td>${money(row.quebec_tax)}</td>
           <td style="font-weight: bold; color: #15803d;">${money(row.net_pay)}</td>
-          <td><button class="btn" style="padding:6px 10px;font-size:12px;" onclick="printStub(${i})">🖨 Stub</button></td>
+          <td><button class="btn" style="padding:6px 10px;font-size:12px;" onclick="printStub(${i})">${i18n.t('py_stub_btn')}</button></td>
         </tr>`;
       });
       html += '</tbody></table></div>';
@@ -539,30 +557,31 @@
       // Remittance summary
       const r = data.remittance;
       if (r) {
-        html += `<h3 style="color:#1e40af;margin:24px 0 10px;">Remittance Summary — what to remit for this pay run</h3>
+        const fss = r.revenu_quebec.fss_rate ? ' @ ' + r.revenu_quebec.fss_rate + '%' : '';
+        html += `<h3 style="color:#1e40af;margin:24px 0 10px;">${i18n.t('py_remittance_title')}</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
             <div style="border:2px solid #e2e8f0;border-radius:8px;padding:16px;">
-              <h4 style="color:#1e40af;margin-bottom:8px;">CRA (federal)</h4>
-              <div>Federal income tax: ${money(r.cra.federal_income_tax)}</div>
-              <div>EI — employee: ${money(r.cra.ei_employee)}</div>
-              <div>EI — employer: ${money(r.cra.ei_employer)}</div>
-              <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">Total to CRA: ${money(r.cra.total)}</div>
+              <h4 style="color:#1e40af;margin-bottom:8px;">${i18n.t('py_cra_federal')}</h4>
+              <div>${i18n.t('py_federal_income_tax')} ${money(r.cra.federal_income_tax)}</div>
+              <div>${i18n.t('py_ei_employee')} ${money(r.cra.ei_employee)}</div>
+              <div>${i18n.t('py_ei_employer')} ${money(r.cra.ei_employer)}</div>
+              <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">${i18n.t('py_total_to_cra')} ${money(r.cra.total)}</div>
             </div>
             <div style="border:2px solid #e2e8f0;border-radius:8px;padding:16px;">
-              <h4 style="color:#1e40af;margin-bottom:8px;">Revenu Québec</h4>
-              <div>Quebec income tax: ${money(r.revenu_quebec.quebec_income_tax)}</div>
-              <div>QPP — employee: ${money(r.revenu_quebec.qpp_employee)}</div>
-              <div>QPP — employer: ${money(r.revenu_quebec.qpp_employer)}</div>
-              <div>QPIP — employee: ${money(r.revenu_quebec.qpip_employee)}</div>
-              <div>QPIP — employer: ${money(r.revenu_quebec.qpip_employer)}</div>
-              <div>Health Services Fund (FSS${r.revenu_quebec.fss_rate ? ' @ ' + r.revenu_quebec.fss_rate + '%' : ''}): ${money(r.revenu_quebec.fss_employer)}</div>
-              <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">Total to Revenu Québec: ${money(r.revenu_quebec.total)}</div>
+              <h4 style="color:#1e40af;margin-bottom:8px;">${i18n.t('py_revenu_quebec')}</h4>
+              <div>${i18n.t('py_quebec_income_tax')} ${money(r.revenu_quebec.quebec_income_tax)}</div>
+              <div>${i18n.t('py_qpp_employee')} ${money(r.revenu_quebec.qpp_employee)}</div>
+              <div>${i18n.t('py_qpp_employer')} ${money(r.revenu_quebec.qpp_employer)}</div>
+              <div>${i18n.t('py_qpip_employee')} ${money(r.revenu_quebec.qpip_employee)}</div>
+              <div>${i18n.t('py_qpip_employer')} ${money(r.revenu_quebec.qpip_employer)}</div>
+              <div>${i18n.t('py_fss_label')}${fss}): ${money(r.revenu_quebec.fss_employer)}</div>
+              <div style="font-weight:bold;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:8px;">${i18n.t('py_total_to_rq')} ${money(r.revenu_quebec.total)}</div>
             </div>
           </div>`;
       }
 
       html += `<p style="margin-top:18px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;font-size:13px;">
-        ⚠️ <strong>Estimate.</strong> Deductions are calculated with 2026 Quebec/CRA rates for guidance. Final amounts should be confirmed by your accountant before filing or remitting. FSS (Health Services Fund) shows $0 until your company's assigned rate is set.
+        ${i18n.t('py_estimate_note')}
       </p>`;
 
       document.getElementById('payrollResults').innerHTML = html;
@@ -575,7 +594,7 @@
       const ctx = window._payrollContext || {};
       const ded = (parseFloat(row.qpp)+parseFloat(row.qpip)+parseFloat(row.ei)+parseFloat(row.federal_tax)+parseFloat(row.quebec_tax)).toFixed(2);
       const w = window.open('', '_blank', 'width=700,height=800');
-      w.document.write(`<!DOCTYPE html><html><head><title>Pay Stub - ${row.employee_name}</title>
+      w.document.write(`<!DOCTYPE html><html><head><title>${i18n.t('py_pay_stub_title')} - ${row.employee_name}</title>
         <style>
           body{font-family:'Segoe UI',Arial,sans-serif;color:#1f2937;padding:32px;max-width:640px;margin:0 auto;}
           h1{color:#1e40af;font-size:22px;margin-bottom:2px;} .sub{color:#64748b;margin-bottom:20px;}
@@ -585,25 +604,25 @@
           .note{margin-top:24px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px;border-radius:6px;}
           @media print{button{display:none;}}
         </style></head><body>
-        <h1>${(JSON.parse(localStorage.getItem('company')||'{}')).company_name || 'APEX PAY'}</h1>
-        <div class="sub">Pay Stub</div>
+        <h1>${(JSON.parse(localStorage.getItem('company')||'{}')).company_name || 'ApexPayGo'}</h1>
+        <div class="sub">${i18n.t('py_pay_stub_title')}</div>
         <table>
-          <tr><td>Employee</td><td class="r">${row.employee_name} ${row.employee_code ? '('+row.employee_code+')' : ''}</td></tr>
-          <tr><td>Pay period end</td><td class="r">${ctx.payEndDate||''}</td></tr>
-          <tr><td>Payment date</td><td class="r">${ctx.paymentDate||''}</td></tr>
-          <tr><td>Frequency</td><td class="r">${ctx.payFrequency||''}</td></tr>
-          <tr><td class="sec">Gross pay</td><td class="r tot">${money(row.gross_pay)}</td></tr>
-          <tr><td class="sec" colspan="2">Deductions</td></tr>
-          <tr><td>QPP</td><td class="r">-${money(row.qpp)}</td></tr>
-          <tr><td>QPIP</td><td class="r">-${money(row.qpip)}</td></tr>
-          <tr><td>EI</td><td class="r">-${money(row.ei)}</td></tr>
-          <tr><td>Federal tax</td><td class="r">-${money(row.federal_tax)}</td></tr>
-          <tr><td>Quebec tax</td><td class="r">-${money(row.quebec_tax)}</td></tr>
-          <tr><td>Total deductions</td><td class="r">-$${ded}</td></tr>
-          <tr class="net"><td>NET PAY</td><td class="r">${money(row.net_pay)}</td></tr>
+          <tr><td>${i18n.t('py_employee_label')}</td><td class="r">${row.employee_name} ${row.employee_code ? '('+row.employee_code+')' : ''}</td></tr>
+          <tr><td>${i18n.t('py_pay_period_end_label')}</td><td class="r">${ctx.payEndDate||''}</td></tr>
+          <tr><td>${i18n.t('py_payment_date')}</td><td class="r">${ctx.paymentDate||''}</td></tr>
+          <tr><td>${i18n.t('py_frequency_label')}</td><td class="r">${ctx.payFrequency||''}</td></tr>
+          <tr><td class="sec">${i18n.t('py_gross_pay_label')}</td><td class="r tot">${money(row.gross_pay)}</td></tr>
+          <tr><td class="sec" colspan="2">${i18n.t('py_deductions_label')}</td></tr>
+          <tr><td>${i18n.t('stub_qpp')}</td><td class="r">-${money(row.qpp)}</td></tr>
+          <tr><td>${i18n.t('stub_qpip')}</td><td class="r">-${money(row.qpip)}</td></tr>
+          <tr><td>${i18n.t('stub_ei')}</td><td class="r">-${money(row.ei)}</td></tr>
+          <tr><td>${i18n.t('th_federal_tax')}</td><td class="r">-${money(row.federal_tax)}</td></tr>
+          <tr><td>${i18n.t('th_quebec_tax')}</td><td class="r">-${money(row.quebec_tax)}</td></tr>
+          <tr><td>${i18n.t('py_total_deductions_label')}</td><td class="r">-$${ded}</td></tr>
+          <tr class="net"><td>${i18n.t('py_net_pay_label')}</td><td class="r">${money(row.net_pay)}</td></tr>
         </table>
-        <div class="note">Estimate generated by APEX PAY using 2026 Quebec/CRA rates. Confirm with your accountant before relying on these figures.</div>
-        <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>
+        <div class="note">${i18n.t('py_stub_note')}</div>
+        <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;">${i18n.t('py_print_btn')}</button>
         </body></html>`);
       w.document.close();
     }
@@ -627,7 +646,7 @@
           const emps = data.employees || [];
           
           if (!emps.length) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #64748b;">No employees. Add employees to generate reports.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #64748b;">${i18n.t('py_no_employees_reports')}</td></tr>`;
             return;
           }
 
@@ -645,25 +664,25 @@
           `).join('');
         })
         .catch(e => {
-          document.getElementById('reportTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #dc2626;">Error loading reports</td></tr>';
+          document.getElementById('reportTable').innerHTML = `<tr><td colspan="8" style="text-align: center; color: #dc2626;">${i18n.t('py_error_loading_reports')}</td></tr>`;
         });
     }
 
     function loadYearEnd() {
       const year = document.getElementById('yearEndYear').value;
       const container = document.getElementById('yearEndContainer');
-      container.innerHTML = '<p style="color:#64748b;">Generating…</p>';
+      container.innerHTML = `<p style="color:#64748b;">${i18n.t('py_generating')}</p>`;
 
       authFetch(`/api/year-end?companyId=${company.id}&year=${year}`)
         .then(r => r.json())
         .then(data => {
           window._slips = data.slips || [];
           if (!window._slips.length) {
-            container.innerHTML = `<p style="color:#64748b;">No payroll found for ${year}. Run a payroll in that year first.</p>`;
+            container.innerHTML = `<p style="color:#64748b;">${i18n.t('py_no_payroll_for_year', { year })}</p>`;
             return;
           }
           let html = `<div style="overflow-x:auto;"><table style="font-size:14px;"><thead><tr>
-            <th>Employee</th><th>Code</th><th>Gross</th><th>QPP</th><th>QPIP</th><th>EI</th><th>Federal Tax</th><th>Quebec Tax</th><th>Slips</th>
+            <th>${i18n.t('th_employee')}</th><th>${i18n.t('th_code')}</th><th>${i18n.t('th_gross')}</th><th>QPP</th><th>QPIP</th><th>EI</th><th>${i18n.t('th_federal_tax')}</th><th>${i18n.t('th_quebec_tax')}</th><th>${i18n.t('th_slips')}</th>
             </tr></thead><tbody>`;
           window._slips.forEach((s, i) => {
             html += `<tr>
@@ -676,17 +695,17 @@
               <td>${money(s.federal_tax)}</td>
               <td>${money(s.quebec_tax)}</td>
               <td style="white-space:nowrap;">
-                <button class="btn" style="padding:6px 10px;font-size:12px;" onclick="printT4(${i})">🖨 T4</button>
-                <button class="btn" style="padding:6px 10px;font-size:12px;margin-left:4px;" onclick="printRL1(${i})">🖨 RL-1</button>
+                <button class="btn" style="padding:6px 10px;font-size:12px;" onclick="printT4(${i})">${i18n.t('py_t4_btn')}</button>
+                <button class="btn" style="padding:6px 10px;font-size:12px;margin-left:4px;" onclick="printRL1(${i})">${i18n.t('py_rl1_btn')}</button>
               </td>
             </tr>`;
           });
           html += `</tbody></table></div>
             <p style="margin-top:14px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;color:#92400e;font-size:13px;">
-            ⚠️ <strong>Estimate — not an official slip.</strong> These box amounts are for your accountant to review and transfer onto the official CRA T4 and Revenu Québec RL-1 forms for filing.</p>`;
+            ${i18n.t('py_year_end_note')}</p>`;
           container.innerHTML = html;
         })
-        .catch(e => { container.innerHTML = '<p style="color:#dc2626;">Error generating slips.</p>'; });
+        .catch(e => { container.innerHTML = `<p style="color:#dc2626;">${i18n.t('py_error_generating_slips')}</p>`; });
     }
 
     function slipWindow(title, companyName, employeeName, code, year, rows) {
@@ -702,12 +721,12 @@
           .note{margin-top:22px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px;border-radius:6px;}
           @media print{button{display:none;}}
         </style></head><body>
-        <h1>${companyName || 'APEX PAY'}</h1>
-        <div class="sub">${title} — Tax Year ${year}</div>
-        <div class="sub">Employee: <strong>${employeeName}</strong>${code ? ' ('+code+')' : ''}</div>
+        <h1>${companyName || 'ApexPayGo'}</h1>
+        <div class="sub">${title} — ${i18n.t('py_tax_year')} ${year}</div>
+        <div class="sub">${i18n.t('py_employee_label')}: <strong>${employeeName}</strong>${code ? ' ('+code+')' : ''}</div>
         <table>${body}</table>
-        <div class="note">Estimate generated by APEX PAY. Transfer these amounts onto the official ${title} form; confirm with your accountant before filing.</div>
-        <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>
+        <div class="note">${i18n.t('py_slip_note', { title })}</div>
+        <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;">${i18n.t('py_print_btn')}</button>
         </body></html>`);
       w.document.close();
     }
@@ -717,17 +736,18 @@
       const cName = (JSON.parse(localStorage.getItem('company')||'{}')).company_name;
       const y = document.getElementById('yearEndYear').value;
       const t = s.t4;
-      slipWindow('T4', cName, `${s.first_name} ${s.last_name}`, s.code, y, [
-        ['Box 10 — Province of employment', t.box10],
-        ['Box 14 — Employment income', money(t.box14)],
-        ['Box 16 — CPP contributions', money(t.box16)],
-        ['Box 17 — QPP contributions', money(t.box17)],
-        ['Box 18 — EI premiums', money(t.box18)],
-        ['Box 22 — Income tax deducted', money(t.box22)],
-        ['Box 24 — EI insurable earnings', money(t.box24)],
-        ['Box 26 — QPP pensionable earnings', money(t.box26)],
-        ['Box 55 — QPIP premiums', money(t.box55)],
-        ['Box 56 — QPIP insurable earnings', money(t.box56)],
+      const B = i18n.t('py_box_prefix');
+      slipWindow(i18n.t('py_t4_title'), cName, `${s.first_name} ${s.last_name}`, s.code, y, [
+        [`${B} 10 — ${i18n.t('t4_box10')}`, t.box10],
+        [`${B} 14 — ${i18n.t('t4_box14')}`, money(t.box14)],
+        [`${B} 16 — ${i18n.t('t4_box16')}`, money(t.box16)],
+        [`${B} 17 — ${i18n.t('t4_box17')}`, money(t.box17)],
+        [`${B} 18 — ${i18n.t('t4_box18')}`, money(t.box18)],
+        [`${B} 22 — ${i18n.t('t4_box22')}`, money(t.box22)],
+        [`${B} 24 — ${i18n.t('t4_box24')}`, money(t.box24)],
+        [`${B} 26 — ${i18n.t('t4_box26')}`, money(t.box26)],
+        [`${B} 55 — ${i18n.t('t4_box55')}`, money(t.box55)],
+        [`${B} 56 — ${i18n.t('t4_box56')}`, money(t.box56)],
       ]);
     }
 
@@ -736,14 +756,15 @@
       const cName = (JSON.parse(localStorage.getItem('company')||'{}')).company_name;
       const y = document.getElementById('yearEndYear').value;
       const b = s.rl1;
-      slipWindow('RL-1', cName, `${s.first_name} ${s.last_name}`, s.code, y, [
-        ['Box A — Employment income', money(b.boxA)],
-        ['Box B — QPP contribution', money(b.boxB)],
-        ['Box C — EI premium', money(b.boxC)],
-        ['Box E — Quebec income tax withheld', money(b.boxE)],
-        ['Box G — QPP pensionable salary', money(b.boxG)],
-        ['Box H — QPIP premium', money(b.boxH)],
-        ['Box I — QPIP eligible wages', money(b.boxI)],
+      const B = i18n.t('py_box_prefix');
+      slipWindow(i18n.t('py_rl1_title'), cName, `${s.first_name} ${s.last_name}`, s.code, y, [
+        [`${B} A — ${i18n.t('rl1_boxA')}`, money(b.boxA)],
+        [`${B} B — ${i18n.t('rl1_boxB')}`, money(b.boxB)],
+        [`${B} C — ${i18n.t('rl1_boxC')}`, money(b.boxC)],
+        [`${B} E — ${i18n.t('rl1_boxE')}`, money(b.boxE)],
+        [`${B} G — ${i18n.t('rl1_boxG')}`, money(b.boxG)],
+        [`${B} H — ${i18n.t('rl1_boxH')}`, money(b.boxH)],
+        [`${B} I — ${i18n.t('rl1_boxI')}`, money(b.boxI)],
       ]);
     }
 
@@ -764,7 +785,6 @@
       if (e.target === modal) closeResultsModal();
     };
   </script>
-  <script src="/i18n.js"></script>
   <script src="/samy.js"></script>
 </body>
 </html>
