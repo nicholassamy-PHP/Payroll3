@@ -314,7 +314,7 @@ def signin():
         company = None
         if user:
             cur.execute(
-                '''SELECT id, company_name, company_type, company_address, industry, trial_start_date
+                '''SELECT id, company_name, company_type, company_address, industry, trial_start_date, subscription_status
                    FROM companies WHERE user_id = %s ORDER BY created_at LIMIT 1''',
                 (user[0],)
             )
@@ -326,7 +326,8 @@ def signin():
                     'company_type': comp[2],
                     'company_address': comp[3],
                     'industry': comp[4],
-                    'trial_start_date': comp[5].strftime('%Y-%m-%d') if comp[5] else None
+                    'trial_start_date': comp[5].strftime('%Y-%m-%d') if comp[5] else None,
+                    'subscription_status': comp[6] or 'trial'
                 }
 
         cur.close()
@@ -364,7 +365,7 @@ def setup():
 
         # If this user already has a company, return it instead of creating a duplicate.
         cur.execute(
-            '''SELECT id, company_name, company_type, company_address, industry, trial_start_date
+            '''SELECT id, company_name, company_type, company_address, industry, trial_start_date, subscription_status
                FROM companies WHERE user_id = %s ORDER BY created_at LIMIT 1''',
             (user_id,)
         )
@@ -380,7 +381,8 @@ def setup():
                     'company_type': existing[2],
                     'company_address': existing[3],
                     'industry': existing[4],
-                    'trial_start_date': existing[5].strftime('%Y-%m-%d') if existing[5] else None
+                    'trial_start_date': existing[5].strftime('%Y-%m-%d') if existing[5] else None,
+                    'subscription_status': existing[6] or 'trial'
                 }
             }), 200
 
@@ -412,9 +414,59 @@ def setup():
                 'company_type': company_type,
                 'company_address': company_address,
                 'industry': industry,
-                'trial_start_date': trial_start_date
+                'trial_start_date': trial_start_date,
+                'subscription_status': 'trial'
             }
         }), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/company', methods=['GET'])
+def get_company():
+    """Fresh company lookup (including subscription_status) — the dashboard
+    calls this on every load so billing state is never stale, especially
+    right after returning from Stripe Checkout."""
+    try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        company_id = request.args.get('companyId')
+        if not company_id:
+            return jsonify({'error': 'Company ID required'}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
+
+        cur.execute(
+            '''SELECT id, company_name, company_type, company_address, industry, trial_start_date, subscription_status
+               FROM companies WHERE id = %s''',
+            (company_id,)
+        )
+        c = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not c:
+            return jsonify({'error': 'Company not found'}), 404
+
+        return jsonify({
+            'company': {
+                'id': c[0],
+                'company_name': c[1],
+                'company_type': c[2],
+                'company_address': c[3],
+                'industry': c[4],
+                'trial_start_date': c[5].strftime('%Y-%m-%d') if c[5] else None,
+                'subscription_status': c[6] or 'trial'
+            }
+        }), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -454,7 +506,7 @@ def update_company():
             conn.commit()
 
             cur.execute(
-                'SELECT id, company_name, company_type, company_address, industry, trial_start_date FROM companies WHERE id = %s',
+                'SELECT id, company_name, company_type, company_address, industry, trial_start_date, subscription_status FROM companies WHERE id = %s',
                 (company_id,)
             )
             company = cur.fetchone()
@@ -472,7 +524,8 @@ def update_company():
                     'company_type': company[2],
                     'company_address': company[3],
                     'industry': company[4],
-                    'trial_start_date': company[5].strftime('%Y-%m-%d') if company[5] else None
+                    'trial_start_date': company[5].strftime('%Y-%m-%d') if company[5] else None,
+                    'subscription_status': company[6] or 'trial'
                 }
             }), 200
         except Exception as e:
@@ -1207,3 +1260,4 @@ def static_files(filename):
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+
