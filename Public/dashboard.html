@@ -215,7 +215,10 @@
 
       fetch('/api/stripe-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '')
+        },
         body: JSON.stringify({
           userId: user.id,
           companyId: company.id,
@@ -294,5 +297,6 @@
       }
     });
   </script>
+  <script src="/samy.js"></script>
 </body>
 </html>
