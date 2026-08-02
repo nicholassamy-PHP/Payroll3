@@ -16,6 +16,17 @@ load_dotenv()
 app = Flask(__name__, static_folder='Public', static_url_path='')
 CORS(app)
 
+@app.after_request
+def add_no_cache_headers(response):
+    # We ship frequent small updates to the JS/HTML files; without this,
+    # browsers can keep serving an old cached copy after a redeploy, which
+    # looks like "the fix didn't work" even though the server is current.
+    if request.path.endswith(('.js', '.html', '.css')) or request.path == '/':
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 # ---- Stripe billing config (set these in Render's environment) ----
@@ -1183,8 +1194,17 @@ def stripe_webhook():
     try:
         import stripe
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
-    except Exception:
-        return jsonify({'error': 'Invalid signature'}), 400
+    except Exception as e:
+        # Temporary: surface the real reason in the response so it shows up
+        # in Stripe's "Event deliveries" panel instead of a generic 400.
+        secret_set = bool(STRIPE_WEBHOOK_SECRET)
+        secret_len = len(STRIPE_WEBHOOK_SECRET) if STRIPE_WEBHOOK_SECRET else 0
+        return jsonify({
+            'error': 'Invalid signature',
+            'detail': str(e),
+            'webhook_secret_configured': secret_set,
+            'webhook_secret_length': secret_len
+        }), 400
 
     try:
         etype = event['type']
