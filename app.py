@@ -18,6 +18,13 @@ CORS(app)
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
+# ---- Stripe billing config (set these in Render's environment) ----
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PRICE_BASE = os.getenv('STRIPE_PRICE_BASE')          # $20/mo recurring price id
+STRIPE_PRICE_EMPLOYEE = os.getenv('STRIPE_PRICE_EMPLOYEE')  # $5/mo per-employee recurring price id
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')  # whsec_... from the Stripe webhook
+APP_URL = os.getenv('APP_URL', 'https://payroll3-sr7d.onrender.com')
+
 def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
@@ -985,16 +992,188 @@ def year_end():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ==================== SAMY — AI ASSISTANT ====================
+
+SAMY_SYSTEM_FR = (
+    "Tu es NICO (Networked Intelligence & Core Operations), l'assistant IA d'ApexPayGo, un logiciel de paie pour le Québec (Canada). "
+    "Tu aides les utilisateurs à utiliser le logiciel : ajouter des employés et leur taux horaire, "
+    "faire un cycle de paie, comprendre les déductions (RRQ, RQAP, assurance-emploi, impôt fédéral et "
+    "impôt du Québec), lire les rapports cumulatifs, le sommaire des versements (ARC et Revenu Québec) "
+    "et les feuillets de fin d'année T4 et RL-1. Réponds de façon brève, claire et amicale, en français. "
+    "IMPORTANT : les calculs d'ApexPayGo sont des estimations basées sur les taux 2026; les montants "
+    "officiels doivent être confirmés par un comptable avant toute production ou versement. Ne donne jamais "
+    "de conseil juridique ou fiscal définitif. Si une question sort du cadre de la paie ou du logiciel, "
+    "ramène gentiment la conversation vers la paie."
+)
+
+SAMY_SYSTEM_EN = (
+    "You are NICO (Networked Intelligence & Core Operations), the AI assistant for ApexPayGo, a payroll application for Quebec, Canada. "
+    "You help users use the software: adding employees and their hourly rate, running a payroll cycle, "
+    "understanding deductions (QPP, QPIP, Employment Insurance, federal tax and Quebec tax), reading the "
+    "year-to-date reports, the remittance summary (CRA and Revenu Quebec) and the year-end T4 and RL-1 slips. "
+    "Answer briefly, clearly and warmly, in English. IMPORTANT: ApexPayGo's calculations are estimates based "
+    "on 2026 rates; official amounts must be confirmed by an accountant before any filing or remittance. Never "
+    "give definitive legal or tax advice. If a question falls outside payroll or the software, gently steer "
+    "the conversation back to payroll."
+)
+
+@app.route('/api/assistant', methods=['POST'])
+def assistant():
+    try:
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        if not os.getenv('ANTHROPIC_API_KEY'):
+            return jsonify({'reply': "Samy n'est pas encore configuré. / Samy is not configured yet."}), 200
+
+        data = request.json or {}
+        lang = 'en' if data.get('lang') == 'en' else 'fr'
+        raw = data.get('messages', [])
+
+        # Sanitize + cap the conversation we forward (last 12 turns, 2000 chars each).
+        convo = []
+        for m in raw[-12:]:
+            role = 'assistant' if m.get('role') == 'assistant' else 'user'
+            content = str(m.get('content', ''))[:2000].strip()
+            if content:
+                convo.append({'role': role, 'content': content})
+        if not convo:
+            return jsonify({'error': 'No message provided'}), 400
+
+        from anthropic import Anthropic
+        client = Anthropic()  # reads ANTHROPIC_API_KEY
+        resp = client.messages.create(
+            model='claude-haiku-4-5',  # fast + cheap, ideal for a help widget
+            max_tokens=1024,
+            system=SAMY_SYSTEM_FR if lang == 'fr' else SAMY_SYSTEM_EN,
+            messages=convo,
+        )
+        reply = ''.join(b.text for b in resp.content if getattr(b, 'type', None) == 'text')
+        return jsonify({'reply': reply}), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ==================== STRIPE ====================
 
 @app.route('/api/stripe-checkout', methods=['POST'])
 def stripe_checkout():
     try:
-        data = request.json
-        checkout_url = f"https://checkout.stripe.com/pay/test?client_secret=test_{datetime.now().timestamp()}"
-        return jsonify({'checkoutUrl': checkout_url}), 200
+        user_id = get_auth_user_id()
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+
+        if not (STRIPE_SECRET_KEY and STRIPE_PRICE_BASE and STRIPE_PRICE_EMPLOYEE):
+            return jsonify({'error': 'Billing is not configured yet.'}), 503
+
+        data = request.json or {}
+        company_id = data.get('companyId')
+        if not company_id:
+            return jsonify({'error': 'Company ID required'}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if not owns_company(cur, user_id, company_id):
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Not authorized'}), 403
+
+        # Bill $20 base + $5 per active employee.
+        cur.execute('SELECT COUNT(*) FROM employees WHERE company_id = %s AND active = true', (company_id,))
+        emp_count = cur.fetchone()[0]
+
+        cur.execute(
+            '''SELECT c.stripe_customer_id, u.email
+               FROM companies c JOIN users u ON u.id = c.user_id WHERE c.id = %s''',
+            (company_id,)
+        )
+        row = cur.fetchone()
+        customer_id = row[0] if row else None
+        email = row[1] if row else None
+        cur.close()
+        conn.close()
+
+        import stripe
+        stripe.api_key = STRIPE_SECRET_KEY
+
+        line_items = [{'price': STRIPE_PRICE_BASE, 'quantity': 1}]
+        if emp_count > 0:
+            line_items.append({'price': STRIPE_PRICE_EMPLOYEE, 'quantity': emp_count})
+
+        params = {
+            'mode': 'subscription',
+            'line_items': line_items,
+            'success_url': APP_URL + '/dashboard?billing=success',
+            'cancel_url': APP_URL + '/dashboard?billing=cancel',
+            'client_reference_id': company_id,
+            'metadata': {'company_id': company_id},
+            'subscription_data': {'metadata': {'company_id': company_id}},
+        }
+        if customer_id:
+            params['customer'] = customer_id
+        elif email:
+            params['customer_email'] = email
+
+        session = stripe.checkout.Session.create(**params)
+        return jsonify({'checkoutUrl': session.url}), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/stripe-webhook', methods=['POST'])
+def stripe_webhook():
+    # Stripe calls this directly (no user auth). Verify the signature instead.
+    payload = request.get_data()
+    sig = request.headers.get('Stripe-Signature', '')
+    try:
+        import stripe
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except Exception:
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    try:
+        etype = event['type']
+        obj = event['data']['object']
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if etype == 'checkout.session.completed':
+            company_id = obj.get('client_reference_id') or (obj.get('metadata') or {}).get('company_id')
+            if company_id:
+                cur.execute(
+                    '''UPDATE companies
+                       SET stripe_customer_id = %s, stripe_subscription_id = %s,
+                           subscription_status = 'active', updated_at = NOW()
+                       WHERE id = %s''',
+                    (obj.get('customer'), obj.get('subscription'), company_id)
+                )
+                conn.commit()
+
+        elif etype in ('customer.subscription.updated', 'customer.subscription.deleted'):
+            status = obj.get('status')
+            mapped = 'active' if status in ('active', 'trialing') else (
+                'canceled' if status in ('canceled', 'unpaid') else 'past_due')
+            company_id = (obj.get('metadata') or {}).get('company_id')
+            if company_id:
+                cur.execute(
+                    'UPDATE companies SET subscription_status = %s, updated_at = NOW() WHERE id = %s',
+                    (mapped, company_id)
+                )
+            else:
+                cur.execute(
+                    'UPDATE companies SET subscription_status = %s, updated_at = NOW() WHERE stripe_subscription_id = %s',
+                    (mapped, obj.get('id'))
+                )
+            conn.commit()
+
+        cur.close()
+        conn.close()
+    except Exception:
+        pass  # never fail the webhook back to Stripe on our own DB errors
+
+    return jsonify({'received': True}), 200
 
 # ==================== FRONTEND ====================
 
