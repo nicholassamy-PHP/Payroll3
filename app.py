@@ -1174,6 +1174,7 @@ def stripe_checkout():
             'client_reference_id': company_id,
             'metadata': {'company_id': company_id},
             'subscription_data': {'metadata': {'company_id': company_id}},
+            'allow_promotion_codes': True,
         }
         if customer_id:
             params['customer'] = customer_id
