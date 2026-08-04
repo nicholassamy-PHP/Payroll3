@@ -1144,9 +1144,10 @@ def stripe_checkout():
             conn.close()
             return jsonify({'error': 'Not authorized'}), 403
 
-        # Bill $20 base + $5 per active employee.
+        # Bill $20 base (includes the first employee free) + $5 per additional active employee.
         cur.execute('SELECT COUNT(*) FROM employees WHERE company_id = %s AND active = true', (company_id,))
         emp_count = cur.fetchone()[0]
+        billable_employees = max(0, emp_count - 1)
 
         cur.execute(
             '''SELECT c.stripe_customer_id, u.email
@@ -1163,8 +1164,8 @@ def stripe_checkout():
         stripe.api_key = STRIPE_SECRET_KEY
 
         line_items = [{'price': STRIPE_PRICE_BASE, 'quantity': 1}]
-        if emp_count > 0:
-            line_items.append({'price': STRIPE_PRICE_EMPLOYEE, 'quantity': emp_count})
+        if billable_employees > 0:
+            line_items.append({'price': STRIPE_PRICE_EMPLOYEE, 'quantity': billable_employees})
 
         params = {
             'mode': 'subscription',
