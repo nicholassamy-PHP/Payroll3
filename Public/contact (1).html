@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ApexPayGo — Contact</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .container { background: #fff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.28); max-width: 480px; width: 100%; padding: 44px 36px; text-align: center; }
+  .brand { color: #1e40af; font-weight: 800; font-size: 20px; text-decoration: none; display: inline-block; margin-bottom: 22px; }
+  h1 { color: #1e293b; font-size: 26px; margin-bottom: 14px; }
+  p.sub { color: #64748b; font-size: 15px; line-height: 1.6; margin-bottom: 28px; }
+  .btn { display: inline-block; background: #1e40af; color: #fff; text-decoration: none; font-weight: 700; padding: 14px 30px; border-radius: 8px; font-size: 16px; transition: all .2s ease; }
+  .btn:hover { background: #1e3a8a; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(30,64,175,.3); }
+  .back { display: block; margin-top: 24px; color: #94a3b8; font-size: 13.5px; text-decoration: none; }
+  .back:hover { color: #1e40af; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <a class="brand" href="/">ApexPayGo</a>
+    <h1 data-i18n="contact_title">Nous contacter</h1>
+    <p class="sub" data-i18n="contact_sub">Une question ou un problème avec ApexPayGo? Écrivez-nous directement — nous répondons généralement en moins de 24 heures.</p>
+    <a class="btn" id="emailBtn" href="#" data-i18n="contact_button">Nous envoyer un courriel</a>
+    <a class="back" href="/" data-i18n="contact_back">Retour à l'accueil</a>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script>
+    (function () {
+      var user = JSON.parse(localStorage.getItem('user') || '{}');
+      var company = JSON.parse(localStorage.getItem('company') || '{}');
+      var subject = 'ApexPayGo — Support';
+      var bodyLines = [];
+      if (user.name) bodyLines.push('Name: ' + user.name);
+      if (user.email) bodyLines.push('Email: ' + user.email);
+      if (company.company_name) bodyLines.push('Company: ' + company.company_name);
+      bodyLines.push('');
+      bodyLines.push('Describe your question or issue below:');
+      bodyLines.push('');
+      var body = bodyLines.join('\n');
+      document.getElementById('emailBtn').href =
+        'mailto:nicholas.samy@phpfin.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    })();
+  </script>
+</body>
+</html>
