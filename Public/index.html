@@ -1,105 +1,191 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APEX PAY - Portal</title>
+  <title>ApexPayGo — La paie simplifiée</title>
+  <meta name="description" content="ApexPayGo: payroll for Quebec businesses. Bilingual, up-to-date Quebec/CRA rates, T4/RL-1 slips, and an AI assistant.">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .container { background: white; border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); max-width: 600px; width: 90%; padding: 40px; text-align: center; }
-    .logo { width: 120px; height: 120px; margin: 0 auto 30px; }
-    h1 { color: #1e40af; margin-bottom: 10px; font-size: 32px; }
-    .subtitle { color: #64748b; margin-bottom: 30px; font-size: 16px; }
-    .welcome-msg { background: #f0f4ff; padding: 20px; border-radius: 8px; margin-bottom: 30px; color: #1e40af; line-height: 1.6; }
-    .user-info { margin-bottom: 30px; padding: 15px; background: #f8f9fa; border-radius: 8px; color: #475569; }
-    .user-info strong { color: #1e40af; }
-    .button-group { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
-    button { padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: all 0.3s ease; font-weight: 600; }
-    .btn-primary { background: #1e40af; color: white; }
-    .btn-primary:hover { background: #1e3a8a; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(30, 64, 175, 0.3); }
-    .btn-secondary { background: #e2e8f0; color: #1e40af; }
-    .btn-secondary:hover { background: #cbd5e1; transform: translateY(-2px); }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; background: #fff; }
+
+    a { color: inherit; }
+
+    /* ---- redirect splash (shown briefly to signed-in users) ---- */
+    #redirecting { display: none; min-height: 100vh; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; font-size: 18px; font-weight: 600; }
+
+    /* ---- nav ---- */
+    .navbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.92); backdrop-filter: blur(6px); border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: #1e40af; text-decoration: none; }
+    .brand svg { width: 34px; height: 34px; }
+    .nav-right { display: flex; align-items: center; gap: 14px; }
+    .nav-link { text-decoration: none; color: #334155; font-weight: 600; font-size: 15px; }
+    .nav-link:hover { color: #1e40af; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 15px; text-decoration: none; border: none; cursor: pointer; transition: all .2s ease; }
+    .btn-primary { background: #1e40af; color: #fff; }
+    .btn-primary:hover { background: #1e3a8a; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(30,64,175,.3); }
+    .btn-large { padding: 15px 32px; font-size: 17px; border-radius: 10px; }
+    .btn-ghost { background: rgba(255,255,255,.15); color: #fff; border: 2px solid rgba(255,255,255,.6); }
+    .btn-ghost:hover { background: rgba(255,255,255,.28); }
+
+    /* ---- hero ---- */
+    .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 90px 24px 100px; text-align: center; }
+    .badge { display: inline-block; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.4); padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; letter-spacing: .3px; margin-bottom: 22px; }
+    .hero h1 { font-size: 46px; font-weight: 800; line-height: 1.15; max-width: 780px; margin: 0 auto 20px; }
+    .hero p { font-size: 18px; line-height: 1.6; max-width: 640px; margin: 0 auto 34px; opacity: .95; }
+    .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .trial-note { font-size: 14px; opacity: .85; }
+
+    /* ---- sections ---- */
+    section { padding: 80px 24px; }
+    .section-inner { max-width: 1080px; margin: 0 auto; }
+    .section-title { text-align: center; font-size: 32px; font-weight: 800; color: #1e293b; margin-bottom: 48px; }
+
+    .features { background: #f8fafc; }
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+    .feat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; }
+    .feat-icon { width: 46px; height: 46px; border-radius: 10px; background: #eef2ff; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 16px; }
+    .feat-card h3 { font-size: 18px; color: #1e40af; margin-bottom: 8px; }
+    .feat-card p { font-size: 14.5px; color: #64748b; line-height: 1.55; }
+
+    .pricing { text-align: center; }
+    .pricing p.sub { color: #64748b; margin-top: -30px; margin-bottom: 40px; font-size: 16px; }
+    .price-card { max-width: 400px; margin: 0 auto; background: #fff; border: 2px solid #1e40af; border-radius: 16px; padding: 40px 32px; box-shadow: 0 12px 32px rgba(30,64,175,.12); }
+    .price-amount { font-size: 52px; font-weight: 800; color: #1e40af; }
+    .price-period { font-size: 18px; color: #64748b; font-weight: 600; }
+    .price-detail { color: #475569; font-size: 15px; margin: 18px 0 8px; line-height: 1.5; }
+    .price-trial { display: inline-block; background: #dcfce7; color: #15803d; font-weight: 700; font-size: 13px; padding: 6px 14px; border-radius: 999px; margin-bottom: 26px; }
+    .price-card .btn { width: 100%; margin-top: 16px; }
+
+    .cta-band { background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color: #fff; text-align: center; }
+    .cta-band h2 { font-size: 30px; font-weight: 800; margin-bottom: 26px; }
+
+    footer { padding: 32px 24px; text-align: center; color: #94a3b8; font-size: 13.5px; border-top: 1px solid #e2e8f0; }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .hero { padding: 60px 20px 70px; }
+      .nav-link.hide-mobile { display: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <svg class="logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="95" fill="#1e40af" opacity="0.1"/>
-      <circle cx="100" cy="70" r="35" fill="#1e40af"/>
-      <path d="M 100 50 L 120 65 L 110 65 L 110 85 L 90 85 L 90 65 L 80 65 Z" fill="white"/>
-      <circle cx="100" cy="95" r="18" fill="none" stroke="#1e40af" stroke-width="3"/>
-      <text x="100" y="102" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1e40af" text-anchor="middle">$</text>
-      <text x="100" y="155" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#1e40af" text-anchor="middle">APEX PAY</text>
-      <text x="100" y="175" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">PAYROLL SYSTEM</text>
-    </svg>
 
-    <h1>Welcome to APEX PAY</h1>
-    <p class="subtitle">Payroll Management System</p>
-
-    <div id="authenticated" style="display: none;">
-      <div class="welcome-msg">
-        <p>You are logged in to your payroll account.</p>
-      </div>
-      <div class="user-info">
-        <p>Name: <strong id="userName"></strong></p>
-        <p>Email: <strong id="userEmail"></strong></p>
-      </div>
-      <div class="button-group">
-        <button class="btn-primary" onclick="logout()">Logout</button>
-      </div>
-    </div>
-
-    <div id="unauthenticated" style="display: none;">
-      <div class="welcome-msg">
-        <p>Manage your payroll and employee data with APEX PAY.</p>
-      </div>
-      <div class="button-group">
-        <button class="btn-primary" onclick="window.location.href='/signin'">Sign In</button>
-        <button class="btn-secondary" onclick="window.location.href='/signup'">Create Account</button>
-      </div>
-    </div>
+  <div id="redirecting">
+    <span data-i18n="landing_redirecting">Redirection en cours…</span>
   </div>
 
+  <div id="marketing">
+    <nav class="navbar">
+      <a href="/" class="brand">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="100" cy="100" r="95" fill="#1e40af" opacity="0.1"/>
+          <circle cx="100" cy="70" r="35" fill="#1e40af"/>
+          <path d="M 100 50 L 120 65 L 110 65 L 110 85 L 90 85 L 90 65 L 80 65 Z" fill="white"/>
+          <circle cx="100" cy="95" r="18" fill="none" stroke="#1e40af" stroke-width="3"/>
+          <text x="100" y="102" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#1e40af" text-anchor="middle">$</text>
+        </svg>
+        ApexPayGo
+      </a>
+      <div class="nav-right">
+        <div id="langSwitch"></div>
+        <a class="nav-link hide-mobile" href="/signin" data-i18n="sign_in">Se connecter</a>
+        <a class="btn btn-primary" href="/signup" data-i18n="create_account">Créer un compte</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <span class="badge" data-i18n="landing_hero_badge">Conçu pour le Québec</span>
+      <h1 data-i18n="landing_hero_title">La paie, sans le casse-tête</h1>
+      <p data-i18n="landing_hero_sub">ApexPayGo calcule vos paies selon les taux 2026 du Québec et de l'ARC, produit vos relevés T4/RL-1, et répond à vos questions grâce à NICO, votre assistant IA — en français ou en anglais.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary btn-large" href="/signup" data-i18n="landing_cta_start">Commencer l'essai gratuit</a>
+        <a class="btn btn-ghost btn-large" href="/signin" data-i18n="sign_in">Se connecter</a>
+      </div>
+      <div class="trial-note" data-i18n="landing_trial_note">Essai gratuit de 7 jours. Aucune carte de crédit requise.</div>
+    </header>
+
+    <section class="features">
+      <div class="section-inner">
+        <h2 class="section-title" data-i18n="landing_features_title">Tout ce qu'il faut pour gérer la paie</h2>
+        <div class="feat-grid">
+          <div class="feat-card">
+            <div class="feat-icon">🌐</div>
+            <h3 data-i18n="landing_feat1_title">Bilingue</h3>
+            <p data-i18n="landing_feat1_text">Toute l'interface et vos documents, disponibles en français et en anglais.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">📊</div>
+            <h3 data-i18n="landing_feat2_title">Taux à jour</h3>
+            <p data-i18n="landing_feat2_text">Calculs basés sur les taux 2026 du Québec et de l'ARC (RRQ, RQAP, AE, impôts).</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">💬</div>
+            <h3 data-i18n="landing_feat3_title">NICO, assistant IA</h3>
+            <p data-i18n="landing_feat3_text">Posez vos questions de paie en tout temps à notre assistant intégré.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">🧾</div>
+            <h3 data-i18n="landing_feat4_title">Relevés T4 / RL-1</h3>
+            <p data-i18n="landing_feat4_text">Générez les relevés de fin d'année pour vos employés en quelques clics.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">⚡</div>
+            <h3 data-i18n="landing_feat5_title">Configuration rapide</h3>
+            <p data-i18n="landing_feat5_text">Créez votre compte et ajoutez vos employés en quelques minutes.</p>
+          </div>
+          <div class="feat-card">
+            <div class="feat-icon">📋</div>
+            <h3 data-i18n="landing_feat6_title">Tableau de bord clair</h3>
+            <p data-i18n="landing_feat6_text">Suivez votre entreprise, vos employés et votre abonnement au même endroit.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing">
+      <div class="section-inner">
+        <h2 class="section-title" data-i18n="landing_pricing_title">Prix simple et transparent</h2>
+        <p class="sub" data-i18n="landing_pricing_sub">Un seul forfait, sans surprise.</p>
+        <div class="price-card">
+          <span class="price-trial" data-i18n="landing_price_trial">Essai gratuit de 7 jours</span>
+          <div>
+            <span class="price-amount" data-i18n="landing_price_amount">20 $</span>
+            <span class="price-period" data-i18n="landing_price_period">/mois</span>
+          </div>
+          <p class="price-detail" data-i18n="landing_price_detail">1 employé inclus, puis 5 $ par employé additionnel par mois.</p>
+          <a class="btn btn-primary" href="/signup" data-i18n="landing_price_cta">Commencer maintenant</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div class="section-inner">
+        <h2 data-i18n="landing_cta_band_title">Prêt à simplifier votre paie?</h2>
+        <a class="btn btn-ghost btn-large" href="/signup" data-i18n="landing_cta_start">Commencer l'essai gratuit</a>
+      </div>
+    </section>
+
+    <footer>
+      <div>ApexPayGo · <span data-i18n="landing_footer_rights">Tous droits réservés.</span></div>
+    </footer>
+  </div>
+
+  <script src="/i18n.js"></script>
   <script>
-    async function checkAuth() {
-      try {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-          document.getElementById('unauthenticated').style.display = 'block';
-          return;
-        }
-
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        document.getElementById('userName').textContent = user.name || 'User';
-        document.getElementById('userEmail').textContent = user.email || 'N/A';
-        document.getElementById('authenticated').style.display = 'block';
-      } catch (error) {
-        console.error('Auth check error:', error);
-        document.getElementById('unauthenticated').style.display = 'block';
-      }
-    }
-
-    function logout() {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
-      localStorage.removeItem('company');
-      window.location.reload();
-    }
-
-    checkAuth();
-
-    setTimeout(() => {
+    (function checkAuth() {
       const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      document.getElementById('marketing').style.display = 'none';
+      const redirecting = document.getElementById('redirecting');
+      redirecting.style.display = 'flex';
+      i18n.apply(redirecting);
+
       const company = JSON.parse(localStorage.getItem('company') || '{}');
-      if (token) {
-        if (company.id) {
-          window.location.href = '/dashboard';
-        } else {
-          window.location.href = '/setup';
-        }
-      }
-    }, 100);
+      window.location.href = company.id ? '/dashboard' : '/setup';
+    })();
   </script>
 </body>
 </html>
