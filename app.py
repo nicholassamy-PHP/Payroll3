@@ -1306,11 +1306,11 @@ def payroll_page():
 
 @app.route('/confidentialite')
 def privacy_fr_page():
-    return send_from_directory('Public', 'privacy-fr.html')
+    return send_from_directory('Public', 'privacyfr.html')
 
 @app.route('/privacy')
 def privacy_en_page():
-    return send_from_directory('Public', 'privacy-en.html')
+    return send_from_directory('Public', 'privacyen.html')
 
 @app.route('/contact')
 def contact_page():
@@ -1322,4 +1322,3 @@ def static_files(filename):
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
-
