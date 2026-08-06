@@ -17,6 +17,9 @@
 
     /* ---- nav ---- */
     .navbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.92); backdrop-filter: blur(6px); border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+    /* i18n.js's default lang-switch colors assume a dark navbar; this page's navbar is light, so override for contrast */
+    #marketing .navbar .lang-switch button { background: rgba(30,64,175,.08); color: #1e40af; border-color: rgba(30,64,175,.35); }
+    #marketing .navbar .lang-switch button.active { background: #1e40af; color: #fff; border-color: #1e40af; }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; color: #1e40af; text-decoration: none; }
     .brand svg { width: 34px; height: 34px; }
     .nav-right { display: flex; align-items: center; gap: 14px; }
