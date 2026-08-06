@@ -1,4 +1,4 @@
-/* ApexPayGo shared internationalization.
+* ApexPayGo shared internationalization.
    Default language: French (for Quebec). English available; Spanish added later.
    Usage in HTML:
      <element data-i18n="key">          -> sets textContent
@@ -44,9 +44,9 @@
       landing_feat6_text: "Suivez votre entreprise, vos employés et votre abonnement au même endroit.",
       landing_pricing_title: "Prix simple et transparent",
       landing_pricing_sub: "Un seul forfait, sans surprise.",
-      landing_price_amount: "20 $",
+      landing_price_amount: "20 $ USD",
       landing_price_period: "/mois",
-      landing_price_detail: "1 employé inclus, puis 5 $ par employé additionnel par mois.",
+      landing_price_detail: "1 employé inclus, puis 5 $ USD par employé additionnel par mois.",
       landing_price_trial: "Essai gratuit de 7 jours",
       landing_price_cta: "Commencer maintenant",
       landing_cta_band_title: "Prêt à simplifier votre paie?",
@@ -306,9 +306,9 @@
       landing_feat6_text: "Track your company, employees, and subscription in one place.",
       landing_pricing_title: "Simple, transparent pricing",
       landing_pricing_sub: "One plan, no surprises.",
-      landing_price_amount: "$20",
+      landing_price_amount: "$20 USD",
       landing_price_period: "/month",
-      landing_price_detail: "1 employee included, then $5 per additional employee per month.",
+      landing_price_detail: "1 employee included, then $5 USD per additional employee per month.",
       landing_price_trial: "7-day free trial",
       landing_price_cta: "Get started now",
       landing_cta_band_title: "Ready to simplify your payroll?",
