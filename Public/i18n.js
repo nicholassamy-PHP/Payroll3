@@ -1,4 +1,4 @@
-* ApexPayGo shared internationalization.
+/* ApexPayGo shared internationalization.
    Default language: French (for Quebec). English available; Spanish added later.
    Usage in HTML:
      <element data-i18n="key">          -> sets textContent
@@ -95,6 +95,15 @@
       ind_healthcare: "Santé",
       ind_finance: "Finance",
       ind_retail: "Commerce de détail",
+      ind_restaurant: "Restauration",
+      ind_construction: "Construction",
+      ind_professional_services: "Services professionnels",
+      ind_hospitality: "Hébergement",
+      ind_transportation: "Transport",
+      ind_real_estate: "Immobilier",
+      ind_personal_services: "Services personnels",
+      ind_nonprofit: "Organisme à but non lucratif",
+      ind_agriculture: "Agriculture",
       ind_manufacturing: "Fabrication",
       ind_education: "Éducation",
       ind_other: "Autre",
@@ -354,6 +363,15 @@
       ind_healthcare: "Healthcare",
       ind_finance: "Finance",
       ind_retail: "Retail",
+      ind_restaurant: "Restaurant / Food Service",
+      ind_construction: "Construction",
+      ind_professional_services: "Professional Services",
+      ind_hospitality: "Hospitality / Accommodation",
+      ind_transportation: "Transportation",
+      ind_real_estate: "Real Estate",
+      ind_personal_services: "Personal Services",
+      ind_nonprofit: "Non-profit",
+      ind_agriculture: "Agriculture",
       ind_manufacturing: "Manufacturing",
       ind_education: "Education",
       ind_other: "Other",

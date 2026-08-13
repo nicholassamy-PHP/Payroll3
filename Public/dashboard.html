@@ -148,6 +148,15 @@
             <option value="healthcare" data-i18n="ind_healthcare">Healthcare</option>
             <option value="finance" data-i18n="ind_finance">Finance</option>
             <option value="retail" data-i18n="ind_retail">Retail</option>
+            <option value="restaurant" data-i18n="ind_restaurant">Restaurant / Food Service</option>
+            <option value="construction" data-i18n="ind_construction">Construction</option>
+            <option value="professional_services" data-i18n="ind_professional_services">Professional Services</option>
+            <option value="hospitality" data-i18n="ind_hospitality">Hospitality / Accommodation</option>
+            <option value="transportation" data-i18n="ind_transportation">Transportation</option>
+            <option value="real_estate" data-i18n="ind_real_estate">Real Estate</option>
+            <option value="personal_services" data-i18n="ind_personal_services">Personal Services</option>
+            <option value="nonprofit" data-i18n="ind_nonprofit">Non-profit</option>
+            <option value="agriculture" data-i18n="ind_agriculture">Agriculture</option>
             <option value="manufacturing" data-i18n="ind_manufacturing">Manufacturing</option>
             <option value="education" data-i18n="ind_education">Education</option>
             <option value="other" data-i18n="ind_other">Other</option>
@@ -236,7 +245,7 @@
       document.getElementById('companyName').textContent = company.company_name || '-';
       document.getElementById('companyType').textContent = company.company_type === 'single' ? i18n.t('single_company') : i18n.t('multi_company');
       document.getElementById('companyAddress').textContent = company.company_address || '-';
-      document.getElementById('industry').textContent = company.industry || '-';
+      document.getElementById('industry').textContent = company.industry ? i18n.t('ind_' + company.industry) : '-';
 
       updateTrialStatus();
     }
