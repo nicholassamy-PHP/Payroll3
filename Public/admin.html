@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ApexPayGo — Admin</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #1e293b; }
+  .navbar { background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color: #fff; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+  .navbar h1 { font-size: 22px; }
+  .navbar a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+  #denied { display: none; text-align: center; padding: 80px 20px; color: #64748b; }
+  #content { display: none; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  th, td { text-align: left; padding: 12px 14px; font-size: 14px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; color: #1e40af; font-weight: 700; }
+  tr:last-child td { border-bottom: none; }
+  .status { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .status-active { background: #dcfce7; color: #15803d; }
+  .status-trial { background: #fef3c7; color: #92400e; }
+  .status-other { background: #f1f5f9; color: #475569; }
+  .actions button { border: none; border-radius: 6px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; margin-right: 6px; }
+  .btn-del-company { background: #fee2e2; color: #dc2626; }
+  .btn-del-company:hover { background: #fecaca; }
+  .btn-del-user { background: #fecaca; color: #991b1b; }
+  .btn-del-user:hover { background: #fca5a5; }
+  .empty { text-align: center; color: #94a3b8; padding: 40px; }
+  .summary { color: #64748b; font-size: 14px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+  <div class="navbar">
+    <h1>ApexPayGo Admin</h1>
+    <a href="/dashboard">Back to Dashboard</a>
+  </div>
+
+  <div id="denied">Not authorized. Redirecting…</div>
+
+  <div id="content" class="container">
+    <div class="summary" id="summary"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Owner</th>
+          <th>Email</th>
+          <th>Company</th>
+          <th>Status</th>
+          <th>Employees</th>
+          <th>Signed up</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <script>
+    function authHeader() {
+      return { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '') };
+    }
+
+    function statusClass(s) {
+      if (s === 'active') return 'status-active';
+      if (s === 'trial') return 'status-trial';
+      return 'status-other';
+    }
+
+    async function loadCompanies() {
+      const res = await fetch('/api/admin/companies', { headers: authHeader() });
+      if (res.status === 401) { window.location.href = '/signin'; return; }
+      if (res.status === 403) {
+        document.getElementById('denied').style.display = 'block';
+        setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+        return;
+      }
+      const data = await res.json();
+      render(data.companies || []);
+    }
+
+    function render(companies) {
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('summary').textContent = companies.length + ' compan' + (companies.length === 1 ? 'y' : 'ies');
+      const rows = document.getElementById('rows');
+      rows.innerHTML = '';
+
+      if (!companies.length) {
+        rows.innerHTML = '<tr><td colspan="7" class="empty">No companies found.</td></tr>';
+        return;
+      }
+
+      companies.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + esc(c.owner_name) + '</td>' +
+          '<td>' + esc(c.owner_email) + '</td>' +
+          '<td>' + esc(c.company_name) + '</td>' +
+          '<td><span class="status ' + statusClass(c.subscription_status) + '">' + esc(c.subscription_status) + '</span></td>' +
+          '<td>' + c.employee_count + '</td>' +
+          '<td>' + (c.trial_start_date || '-') + '</td>' +
+          '<td class="actions">' +
+            '<button class="btn-del-company" data-company="' + c.company_id + '" data-name="' + esc(c.company_name) + '">Delete Company</button>' +
+            '<button class="btn-del-user" data-user="' + c.user_id + '" data-name="' + esc(c.owner_name) + '">Delete User</button>' +
+          '</td>';
+        rows.appendChild(tr);
+      });
+
+      rows.querySelectorAll('.btn-del-company').forEach(btn => {
+        btn.addEventListener('click', () => deleteCompany(btn.dataset.company, btn.dataset.name));
+      });
+      rows.querySelectorAll('.btn-del-user').forEach(btn => {
+        btn.addEventListener('click', () => deleteUser(btn.dataset.user, btn.dataset.name));
+      });
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : s;
+      return d.innerHTML;
+    }
+
+    async function deleteCompany(companyId, name) {
+      if (!confirm('Delete company "' + name + '" and all its employees/payroll data? This cannot be undone.')) return;
+      const res = await fetch('/api/admin/company/' + companyId, { method: 'DELETE', headers: authHeader() });
+      if (res.ok) loadCompanies();
+      else alert('Delete failed: ' + (await res.json()).error);
+    }
+
+    async function deleteUser(userId, name) {
+      if (!confirm('Delete user "' + name + '" and ALL their companies/employees/payroll data? This cannot be undone.')) return;
+      const res = await fetch('/api/admin/user/' + userId, { method: 'DELETE', headers: authHeader() });
+      if (res.ok) loadCompanies();
+      else alert('Delete failed: ' + (await res.json()).error);
+    }
+
+    if (!localStorage.getItem('authToken')) {
+      window.location.href = '/signin';
+    } else {
+      loadCompanies();
+    }
+  </script>
+</body>
+</html>
