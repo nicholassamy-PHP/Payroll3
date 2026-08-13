@@ -76,6 +76,27 @@ def owns_company(cur, user_id, company_id):
     cur.execute('SELECT 1 FROM companies WHERE id = %s AND user_id = %s', (company_id, user_id))
     return cur.fetchone() is not None
 
+def is_admin_user(cur, user_id):
+    cur.execute('SELECT is_admin FROM users WHERE id = %s', (user_id,))
+    row = cur.fetchone()
+    return bool(row and row[0])
+
+def _delete_company_cascade(cur, company_id):
+    """Delete a company and everything under it, in FK-safe order."""
+    cur.execute(
+        '''DELETE FROM hours_input WHERE period_id IN
+           (SELECT id FROM pay_periods WHERE company_id = %s)''',
+        (company_id,)
+    )
+    cur.execute(
+        '''DELETE FROM payroll_runs WHERE period_id IN
+           (SELECT id FROM pay_periods WHERE company_id = %s)''',
+        (company_id,)
+    )
+    cur.execute('DELETE FROM pay_periods WHERE company_id = %s', (company_id,))
+    cur.execute('DELETE FROM employees WHERE company_id = %s', (company_id,))
+    cur.execute('DELETE FROM companies WHERE id = %s', (company_id,))
+
 # ==================== TAX TABLES (year-keyed) ====================
 # To update for a new year: copy the latest block, change the ~15 numbers to
 # match the official Revenu Quebec + CRA source-deduction guides, and add it
@@ -1273,10 +1294,111 @@ def stripe_webhook():
 
         cur.close()
         conn.close()
-    except Exception:
-        pass  # never fail the webhook back to Stripe on our own DB errors
+    except Exception as e:
+        # Never fail the webhook back to Stripe on our own DB errors (that
+        # triggers pointless retries) — but do log it, since a swallowed
+        # error here means a customer paid and we silently failed to mark
+        # their subscription active.
+        app.logger.error('stripe_webhook: failed to process %s: %s', event.get('type'), e)
 
     return jsonify({'received': True}), 200
+
+# ==================== ADMIN ====================
+
+@app.route('/api/admin/companies', methods=['GET'])
+def admin_list_companies():
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if not is_admin_user(cur, user_id):
+        cur.close()
+        conn.close()
+        return jsonify({'error': 'Not authorized'}), 403
+
+    cur.execute(
+        '''SELECT c.id, c.company_name, c.subscription_status, c.trial_start_date,
+                  u.id, u.name, u.email,
+                  (SELECT COUNT(*) FROM employees e WHERE e.company_id = c.id)
+           FROM companies c JOIN users u ON u.id = c.user_id
+           ORDER BY c.trial_start_date DESC NULLS LAST'''
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    companies = [{
+        'company_id': r[0],
+        'company_name': r[1],
+        'subscription_status': r[2] or 'trial',
+        'trial_start_date': r[3].strftime('%Y-%m-%d') if r[3] else None,
+        'user_id': r[4],
+        'owner_name': r[5],
+        'owner_email': r[6],
+        'employee_count': r[7]
+    } for r in rows]
+
+    return jsonify({'companies': companies}), 200
+
+@app.route('/api/admin/company/<company_id>', methods=['DELETE'])
+def admin_delete_company(company_id):
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if not is_admin_user(cur, user_id):
+        cur.close()
+        conn.close()
+        return jsonify({'error': 'Not authorized'}), 403
+
+    try:
+        _delete_company_cascade(cur, company_id)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+    cur.close()
+    conn.close()
+    return jsonify({'success': True}), 200
+
+@app.route('/api/admin/user/<target_user_id>', methods=['DELETE'])
+def admin_delete_user(target_user_id):
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if not is_admin_user(cur, user_id):
+        cur.close()
+        conn.close()
+        return jsonify({'error': 'Not authorized'}), 403
+
+    try:
+        cur.execute('SELECT id FROM companies WHERE user_id = %s', (target_user_id,))
+        for (company_id,) in cur.fetchall():
+            _delete_company_cascade(cur, company_id)
+        cur.execute('DELETE FROM users WHERE id = %s', (target_user_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
+    cur.close()
+    conn.close()
+    return jsonify({'success': True}), 200
 
 # ==================== FRONTEND ====================
 
@@ -1315,6 +1437,10 @@ def privacy_en_page():
 @app.route('/contact')
 def contact_page():
     return send_from_directory('Public', 'contact.html')
+
+@app.route('/admin')
+def admin_page():
+    return send_from_directory('Public', 'admin.html')
 
 @app.route('/<path:filename>')
 def static_files(filename):
